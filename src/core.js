@@ -5,10 +5,11 @@
 
 import { DEFAULT_SETTINGS, QUALITY_PRESETS } from './constants.js';
 import { setDebugMode, debugLog, errorLog, warnLog } from './logger.js';
-import { validateSettings, sanitizeErrorMessage } from './utils.js';
+import { sanitizeErrorMessage, validateSettings } from './utils.js';
 import { clearGenerationCache } from './cache.js';
 import { clearAvatarCache } from './generation.js';
 import { cancelBatch, clearBatchQueue } from './batch.js';
+import * as persistence from './persistence.js';
 
 /**
  * Extension name constant
@@ -21,6 +22,7 @@ const extensionName = "Image-gen-kazuma-dork";
 export const kazumaExtension = {
     enabled: false,
     initialized: false,
+    settings: null,     // Cached settings object (loaded via persistence)
     cleanup: {
         listeners: [],      // Event listeners to remove
         intervals: [],      // Intervals to clear
@@ -30,6 +32,7 @@ export const kazumaExtension = {
     // SillyTavern API references (injected during init)
     stAPI: {
         extension_settings: null,
+        getExtensionSettings: null,
         getContext: null,
         saveSettingsDebounced: null,
         eventSource: null,
@@ -55,22 +58,30 @@ export function initializeAPIs(APIs) {
 }
 
 /**
- * Get extension settings
+ * Get extension settings (validated and cached)
  * @returns {object} Extension settings object
  */
 export function getSettings() {
-    const { extension_settings } = kazumaExtension.stAPI;
-
-    if (!extension_settings || typeof extension_settings !== 'object') {
-        throw new Error('SillyTavern API not initialized: extension_settings is unavailable');
+    // Return cached settings if available and initialized
+    if (kazumaExtension.settings && kazumaExtension.initialized) {
+        return kazumaExtension.settings;
     }
 
-    if (!extension_settings[extensionName]) {
-        extension_settings[extensionName] = { ...DEFAULT_SETTINGS };
-        debugLog('Settings initialized with defaults');
+    // If not initialized, try to load from persistence
+    if (kazumaExtension.stAPI.extension_settings) {
+        try {
+            kazumaExtension.settings = persistence.loadSettings(kazumaExtension.stAPI);
+            return kazumaExtension.settings;
+        } catch (error) {
+            errorLog('Failed to load settings, using defaults:', error.message);
+            kazumaExtension.settings = { ...DEFAULT_SETTINGS };
+            return kazumaExtension.settings;
+        }
     }
 
-    return extension_settings[extensionName];
+    // Fallback to defaults if API not ready
+    warnLog('Settings requested before API ready, returning defaults');
+    return { ...DEFAULT_SETTINGS };
 }
 
 /**
@@ -79,10 +90,12 @@ export function getSettings() {
  */
 export function updateSettings(partial) {
     const settings = getSettings();
-    const { saveSettingsDebounced } = kazumaExtension.stAPI;
 
+    // Merge partial into current settings
     Object.assign(settings, partial);
-    saveSettingsDebounced();
+
+    // Save via persistence module
+    persistence.saveSettings(kazumaExtension.stAPI, settings);
 
     debugLog('Settings updated:', Object.keys(partial));
 }
@@ -91,17 +104,8 @@ export function updateSettings(partial) {
  * Reset settings to defaults
  */
 export function resetSettings() {
-    const { extension_settings, saveSettingsDebounced } = kazumaExtension.stAPI;
-
-    extension_settings[extensionName] = { ...DEFAULT_SETTINGS };
-    saveSettingsDebounced();
-
+    kazumaExtension.settings = persistence.resetSettings(kazumaExtension.stAPI);
     debugLog('Settings reset to defaults');
-
-    // Show notification if toastr available
-    if (typeof toastr !== 'undefined') {
-        toastr.info('Settings reset to defaults');
-    }
 }
 
 /**
@@ -110,30 +114,20 @@ export function resetSettings() {
  */
 export function exportSettings() {
     const settings = getSettings();
-    const exportData = JSON.stringify(settings, null, 2);
+    const exportData = persistence.exportSettingsToJSON(settings);
 
-    try {
-        // Save to localStorage as backup
-        localStorage.setItem(`${extensionName}_backup`, exportData);
-
-        // Copy to clipboard
-        navigator.clipboard.writeText(exportData).then(() => {
-            debugLog('Settings exported to clipboard and localStorage');
-            if (typeof toastr !== 'undefined') {
-                toastr.success('Settings exported to clipboard and localStorage');
-            }
-        }).catch(error => {
-            warnLog('Failed to copy to clipboard:', error.message);
-            if (typeof toastr !== 'undefined') {
-                toastr.info('Settings saved to localStorage only');
-            }
-        });
-    } catch (error) {
-        errorLog('Failed to export settings:', error.message);
+    // Copy to clipboard
+    navigator.clipboard.writeText(exportData).then(() => {
+        debugLog('Settings exported to clipboard and localStorage');
         if (typeof toastr !== 'undefined') {
-            toastr.error('Failed to export settings');
+            toastr.success('Settings exported to clipboard and localStorage');
         }
-    }
+    }).catch(error => {
+        warnLog('Failed to copy to clipboard:', error.message);
+        if (typeof toastr !== 'undefined') {
+            toastr.info('Settings saved to localStorage only');
+        }
+    });
 
     return exportData;
 }
@@ -144,53 +138,11 @@ export function exportSettings() {
  * @returns {Promise<object>} Imported settings
  */
 export async function importSettings(source) {
-    let importedData;
-
     try {
-        if (source === 'localStorage') {
-            const stored = localStorage.getItem(`${extensionName}_backup`);
-            if (!stored) {
-                throw new Error('No backup found in localStorage');
-            }
-            importedData = JSON.parse(stored);
-
-        } else if (source === 'clipboard') {
-            const text = await navigator.clipboard.readText();
-            importedData = JSON.parse(text);
-
-        } else if (typeof source === 'string') {
-            importedData = JSON.parse(source);
-
-        } else if (typeof source === 'object') {
-            importedData = source;
-
-        } else {
-            throw new Error('Invalid import source');
-        }
-
-        // Validate and clamp values
-        const validated = validateSettings(importedData);
-
-        // Merge with current settings
-        const current = getSettings();
-        Object.assign(current, validated);
-
-        const { saveSettingsDebounced } = kazumaExtension.stAPI;
-        saveSettingsDebounced();
-
-        debugLog('Settings imported and validated');
-
-        if (typeof toastr !== 'undefined') {
-            toastr.success('Settings imported successfully');
-        }
-
-        return current;
-
+        kazumaExtension.settings = await persistence.importSettingsFromJSON(kazumaExtension.stAPI, source);
+        return kazumaExtension.settings;
     } catch (error) {
         errorLog('Failed to import settings:', error.message);
-        if (typeof toastr !== 'undefined') {
-            toastr.error(`Import failed: ${sanitizeErrorMessage(error.message)}`);
-        }
         throw error;
     }
 }
@@ -245,8 +197,7 @@ export function savePromptTemplate(name, config) {
         extra: config.extra || settings.promptExtra
     };
 
-    const { saveSettingsDebounced } = kazumaExtension.stAPI;
-    saveSettingsDebounced();
+    persistence.saveSettings(kazumaExtension.stAPI, settings);
 
     debugLog(`Prompt template saved: ${name}`);
 
@@ -290,8 +241,7 @@ export function deletePromptTemplate(name) {
     if (settings.promptTemplates?.[name]) {
         delete settings.promptTemplates[name];
 
-        const { saveSettingsDebounced } = kazumaExtension.stAPI;
-        saveSettingsDebounced();
+        persistence.saveSettings(kazumaExtension.stAPI, settings);
 
         debugLog(`Prompt template deleted: ${name}`);
 
@@ -531,24 +481,32 @@ export async function initialize() {
     debugLog('Initializing extension...');
 
     try {
-        // Load settings
-        const settings = getSettings();
+        // Load and validate settings via persistence module
+        kazumaExtension.settings = persistence.loadSettings(kazumaExtension.stAPI);
 
         // Set debug mode
-        setDebugMode(settings.debugLogging || false);
+        setDebugMode(kazumaExtension.settings.debugLogging || false);
 
         // Mark as initialized
         kazumaExtension.initialized = true;
 
         // Enable if settings say so
-        if (settings.enabled) {
+        if (kazumaExtension.settings.enabled) {
             kazumaExtension.enabled = true;
         }
 
-        debugLog('Core extension initialized');
+        // Register SillyTavern presets
+        try {
+            registerPresets();
+        } catch (presetError) {
+            warnLog('Failed to register presets (non-critical):', presetError.message);
+        }
+
+        debugLog('Core extension initialized successfully');
 
     } catch (error) {
         errorLog('Extension initialization failed:', error);
+        kazumaExtension.initialized = false;
         throw error;
     }
 }
@@ -566,4 +524,165 @@ export function getStatus() {
         timeoutCount: kazumaExtension.cleanup.timeouts.length,
         observerCount: kazumaExtension.cleanup.observers.length
     };
+}
+
+/**
+ * Register extension presets with SillyTavern
+ * Called during initialization to register available presets
+ */
+export function registerPresets() {
+    try {
+        // Only attempt to register presets if ST preset system is available
+        if (typeof registerExtensionPreset !== 'function') {
+            debugLog('SillyTavern registerExtensionPreset not available, skipping preset registration');
+            return;
+        }
+
+        // Register quality presets from constants
+        for (const [presetKey, presetData] of Object.entries(QUALITY_PRESETS)) {
+            try {
+                const presetName = `Image Gen - ${presetData.label}`;
+                const presetSettings = createPresetObject(presetData.settings);
+
+                registerExtensionPreset(presetName, presetSettings);
+                debugLog(`Registered preset: ${presetName}`);
+            } catch (error) {
+                warnLog(`Failed to register preset "${presetKey}":`, error.message);
+            }
+        }
+
+    } catch (error) {
+        warnLog('Failed to register presets:', error.message);
+        // Non-critical - continue without presets
+    }
+}
+
+/**
+ * Create a SillyTavern preset object from partial settings
+ * Only includes portable preset-able fields
+ * @param {object} partialSettings - Partial settings to include
+ * @returns {object} Presetable settings object
+ */
+function createPresetObject(partialSettings) {
+    const fullSettings = Object.assign({}, DEFAULT_SETTINGS);
+
+    // Allowlist of preset-able fields (excludes runtime-only fields)
+    const presetAllowlist = new Set([
+        'enabled',
+        'compress',
+        'debugLogging',
+        'comfyUrl',
+        'autoGenerate',
+        'autoGenerateFrequency',
+        'promptStyle',
+        'promptPerspective',
+        'promptArtStyle',
+        'promptExtra',
+        'activeWorkflow',
+        'steps',
+        'cfg',
+        'denoise',
+        'clipSkip',
+        'seed',
+        'sampler',
+        'scheduler',
+        'width',
+        'height',
+        'model',
+        'negativePrompt',
+        'lora1',
+        'lora1Weight',
+        'lora2',
+        'lora2Weight',
+        'lora3',
+        'lora3Weight',
+        'lora4',
+        'lora4Weight',
+        'includeCharAvatar',
+        'includePersonaAvatar',
+        'qualityPreset'
+    ]);
+
+    // Start with defaults, apply overrides
+    const presetObj = { ...fullSettings };
+    if (partialSettings && typeof partialSettings === 'object') {
+        for (const [key, value] of Object.entries(partialSettings)) {
+            if (presetAllowlist.has(key)) {
+                presetObj[key] = value;
+            }
+        }
+    }
+
+    // Filter to only allowlisted fields
+    const filteredPreset = {};
+    for (const key of presetAllowlist) {
+        if (key in presetObj) {
+            filteredPreset[key] = presetObj[key];
+        }
+    }
+
+    return filteredPreset;
+}
+
+/**
+ * Apply a preset to current settings
+ * @param {object} presetSettings - Preset settings object from SillyTavern
+ * @returns {object} Updated settings
+ */
+export function applyPreset(presetSettings) {
+    if (!presetSettings || typeof presetSettings !== 'object') {
+        warnLog('Invalid preset settings provided');
+        return getSettings();
+    }
+
+    try {
+        // Get the ST API reference
+        const stAPI = kazumaExtension.stAPI;
+
+        if (!stAPI) {
+            throw new Error('SillyTavern API not initialized');
+        }
+
+        // Get current settings
+        const currentSettings = getSettings();
+
+        // Apply preset settings to current settings
+        const merged = {
+            ...currentSettings,
+            ...presetSettings
+        };
+
+        // Validate the merged settings
+        if (!validateSettings(merged)) {
+            throw new Error('Preset validation failed');
+        }
+
+        // Update cached settings
+        kazumaExtension.settings = merged;
+
+        // Persist via the ST API (save to extension settings)
+        stAPI.extension_settings['Image-gen-kazuma-dork'] = merged;
+
+        // Save to persistent storage using SillyTavern's method
+        if (typeof stAPI.saveSettingsDebounced === 'function') {
+            stAPI.saveSettingsDebounced();
+        }
+
+        debugLog('Preset applied successfully');
+
+        if (typeof toastr !== 'undefined') {
+            toastr.success('Preset applied');
+        }
+
+        return merged;
+
+    } catch (error) {
+        errorLog('Failed to apply preset:', error.message);
+
+        if (typeof toastr !== 'undefined') {
+            toastr.error(`Failed to apply preset: ${error.message}`);
+        }
+
+        throw error;
+    }
 }

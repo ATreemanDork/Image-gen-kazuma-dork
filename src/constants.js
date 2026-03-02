@@ -79,6 +79,9 @@ export const QUALITY_PRESETS = {
  * Merged with user settings on initialization
  */
 export const DEFAULT_SETTINGS = {
+    // Settings version for migrations
+    settingsVersion: 1,
+
     // Core toggles
     enabled: true,
     compress: true,

@@ -11,6 +11,8 @@ import * as workflow from './workflow.js';
 import * as generation from './generation.js';
 import * as batch from './batch.js';
 import { sanitizeErrorMessage } from './utils.js';
+import * as persistence from './persistence.js';
+import { runtimeState, updateGenerationStats } from './state.js';
 
 /**
  * Cached jQuery selectors (initialized once for performance)
@@ -547,6 +549,163 @@ function openWorkflowEditor(name, data) {
 }
 
 /**
+ * Render settings panel in Extensions tab
+ * Loads settings.html template
+ */
+async function renderSettingsPanel() {
+    try {
+        // Check if settings panel already rendered
+        if (runtimeState.settingsPanelRendered) {
+            debugLog('Settings panel already rendered, skipping');
+            return;
+        }
+
+        // Find or create extension settings container
+        let settingsContainer = $('#extensions_settings2');
+        if (settingsContainer.length === 0) {
+            settingsContainer = $('#extensions_settings');
+        }
+        if (settingsContainer.length === 0) {
+            warnLog('Extension settings container not found');
+            return;
+        }
+
+        // Fetch settings.html and append
+        const response = await fetch('./public/extensions/Image-gen-kazuma-dork/settings.html');
+        if (!response.ok) {
+            throw new Error(`Failed to load settings.html: ${response.status}`);
+        }
+
+        const settingsHTML = await response.text();
+        settingsContainer.append(settingsHTML);
+
+        runtimeState.settingsPanelRendered = true;
+        debugLog('Settings panel rendered successfully');
+    } catch (error) {
+        warnLog('Failed to render settings panel:', error.message);
+        // Continue without settings panel - isn't critical
+    }
+}
+
+/**
+ * Setup settings panel event handlers
+ */
+function setupSettingsPanelHandlers() {
+    // Extension enable/disable toggle
+    const $enableCheckbox = $('#kazuma-extension-enabled');
+    if ($enableCheckbox.length) {
+        const settings = core.getSettings();
+        $enableCheckbox.prop('checked', settings.enabled);
+
+        $enableCheckbox.on('change', function () {
+            const enabled = $(this).prop('checked');
+            core.updateSettings({ enabled });
+
+            if (enabled) {
+                core.enable();
+            } else {
+                core.disable();
+            }
+        });
+    }
+
+    // Debug logging toggle
+    const $debugCheckbox = $('#kazuma-debug-logging');
+    if ($debugCheckbox.length) {
+        const settings = core.getSettings();
+        $debugCheckbox.prop('checked', settings.debugLogging);
+
+        $debugCheckbox.on('change', function () {
+            const enabled = $(this).prop('checked');
+            setDebugMode(enabled);
+            core.updateSettings({ debugLogging: enabled });
+
+            if (typeof toastr !== 'undefined') {
+                toastr.info(`Debug logging ${enabled ? 'enabled' : 'disabled'}`);
+            }
+        });
+    }
+
+    // Export settings button
+    const $exportBtn = $('#kazuma-export-settings');
+    if ($exportBtn.length) {
+        $exportBtn.on('click', function () {
+            try {
+                const settings = core.getSettings();
+                const exportData = persistence.exportSettingsToJSON(settings);
+
+                // Copy to clipboard
+                navigator.clipboard.writeText(exportData).then(() => {
+                    if (typeof toastr !== 'undefined') {
+                        toastr.success('Settings exported to clipboard');
+                    }
+                    debugLog('Settings exported');
+                }).catch(error => {
+                    warnLog('Failed to copy to clipboard:', error.message);
+                    if (typeof toastr !== 'undefined') {
+                        toastr.info('Settings exported to browser console');
+                    }
+                    console.log('Settings JSON:', exportData);
+                });
+            } catch (error) {
+                if (typeof toastr !== 'undefined') {
+                    toastr.error(`Export failed: ${error.message}`);
+                }
+            }
+        });
+    }
+
+    // Import settings button
+    const $importBtn = $('#kazuma-import-settings');
+    if ($importBtn.length) {
+        $importBtn.on('click', async function () {
+            try {
+                const stAPI = core.kazumaExtension.stAPI;
+                const imported = await persistence.importSettingsFromJSON(stAPI, 'clipboard');
+
+                // Refresh UI with imported settings
+                syncUIWithSettings();
+
+                if (typeof toastr !== 'undefined') {
+                    toastr.success('Settings imported successfully');
+                }
+                debugLog('Settings imported');
+            } catch (error) {
+                if (typeof toastr !== 'undefined') {
+                    toastr.error(`Import failed: ${error.message}`);
+                }
+            }
+        });
+    }
+
+    // Reset settings button
+    const $resetBtn = $('#kazuma-reset-settings');
+    if ($resetBtn.length) {
+        $resetBtn.on('click', function () {
+            if (!confirm('Reset all settings to defaults? This cannot be undone.')) {
+                return;
+            }
+
+            try {
+                persistence.resetSettings(core.kazumaExtension.stAPI);
+                syncUIWithSettings();
+
+                if (typeof toastr !== 'undefined') {
+                    toastr.success('Settings reset to defaults');
+                }
+                debugLog('Settings reset');
+            } catch (error) {
+                if (typeof toastr !== 'undefined') {
+                    toastr.error(`Reset failed: ${error.message}`);
+                }
+            }
+        });
+    }
+
+    debugLog('Settings panel handlers registered');
+}
+
+/**
  * Inject chat button using MutationObserver
  */
 function setupChatButtonObserver() {
@@ -636,11 +795,17 @@ export async function initializeUI() {
     debugLog('Initializing UI...');
 
     try {
+        // Render settings panel in Extensions tab
+        await renderSettingsPanel();
+
         // Cache all selectors
         UI.init();
 
         // Setup event handlers
         setupEventHandlers();
+
+        // Setup settings panel handlers (export/import/reset)
+        setupSettingsPanelHandlers();
 
         // Load dropdowns
         await updateWorkflowList();
