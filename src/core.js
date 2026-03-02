@@ -61,6 +61,10 @@ export function initializeAPIs(APIs) {
 export function getSettings() {
     const { extension_settings } = kazumaExtension.stAPI;
 
+    if (!extension_settings || typeof extension_settings !== 'object') {
+        throw new Error('SillyTavern API not initialized: extension_settings is unavailable');
+    }
+
     if (!extension_settings[extensionName]) {
         extension_settings[extensionName] = { ...DEFAULT_SETTINGS };
         debugLog('Settings initialized with defaults');

@@ -5,8 +5,18 @@
  * Entry point - imports modular architecture and initializes extension
  */
 
+import { extension_settings, getContext } from '../../../extensions.js';
+import {
+    saveSettingsDebounced,
+    generateQuietPrompt,
+    eventSource,
+    event_types,
+    getRequestHeaders,
+    appendMediaToMessage,
+} from '../../../../script.js';
 import * as core from './src/core.js';
 import { debugLog, errorLog } from './src/logger.js';
+import { initializeUI } from './src/ui.js';
 
 /**
  * Extension initialization
@@ -16,8 +26,21 @@ import { debugLog, errorLog } from './src/logger.js';
     try {
         debugLog('Image-gen-kazuma-dork loading...');
 
+        core.initializeAPIs({
+            extension_settings,
+            getContext,
+            saveSettingsDebounced,
+            eventSource,
+            event_types,
+            generateQuietPrompt,
+            getRequestHeaders,
+            appendMediaToMessage,
+        });
+
         // Initialize the extension
         await core.initialize();
+
+        await initializeUI();
 
         console.log(`[Image-gen-kazuma-dork] Extension loaded successfully`);
 
