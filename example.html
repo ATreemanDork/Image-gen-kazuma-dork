@@ -37,7 +37,8 @@
 
                 <div class="kazuma-row">
                     <span>Every X replies:</span>
-                    <input type="number" id="kazuma_auto_freq" class="text_pole" style="width: 60px" min="1" value="1"/>
+                    <input type="number" id="kazuma_auto_freq" class="text_pole" style="width: 60px" min="1"
+                        value="1" />
                 </div>
 
                 <hr style="opacity:0.2; margin: 10px 0;">
@@ -53,7 +54,8 @@
                 <select id="kazuma_profile" class="text_pole" style="width:100%; display:none;"></select>
 
                 <!-- 2. NEW: Prompt Builder (Shown ONLY if 'current') -->
-                <div id="kazuma_prompt_builder" style="display:none; background:rgba(0,0,0,0.2); padding:10px; border-radius:5px; margin-top:5px; border-left: 2px solid var(--smart-text-color);">
+                <div id="kazuma_prompt_builder"
+                    style="display:none; background:rgba(0,0,0,0.2); padding:10px; border-radius:5px; margin-top:5px; border-left: 2px solid var(--smart-text-color);">
                     <div class="kazuma-sub-label" style="margin-top:0;">Model Style (Format)</div>
                     <select id="kazuma_prompt_style" class="text_pole" style="width:100%; margin-bottom:8px;">
                         <option value="standard">Standard (Descriptive)</option>
@@ -68,8 +70,23 @@
                         <option value="character">Character Focus (Portrait)</option>
                     </select>
 
+                    <div class="kazuma-sub-label" style="margin-top:0;">Art Style</div>
+                    <select id="kazuma_prompt_art_style" class="text_pole" style="width:100%; margin-bottom:8px;">
+                        <option value="realistic">Realistic &amp; Photorealistic</option>
+                        <option value="anime">Anime &amp; Manga</option>
+                        <option value="3d">3D Render &amp; Pixar Style</option>
+                        <option value="fantasy">Fantasy</option>
+                        <option value="painterly">Artistic &amp; Painterly</option>
+                        <option value="cinematic">Cinematic</option>
+                        <option value="pixel">Pixel Art</option>
+                        <option value="lineart">Line Art &amp; Coloring Book</option>
+                        <option value="scifi">Sci-Fi &amp; Cyberpunk</option>
+                        <option value="cartoon">Western Cartoon &amp; Comics</option>
+                    </select>
+
                     <div class="kazuma-sub-label" style="margin-top:0;">Extra Instructions</div>
-                    <input type="text" id="kazuma_prompt_extra" class="text_pole" style="width:100%" placeholder="e.g. moody lighting, dark atmosphere...">
+                    <input type="text" id="kazuma_prompt_extra" class="text_pole" style="width:100%"
+                        placeholder="e.g. moody lighting, dark atmosphere...">
                 </div>
             </div>
 
@@ -78,8 +95,10 @@
                 <div class="kazuma-header"><i class="fa-solid fa-link"></i> ComfyUI Server</div>
 
                 <div style="display:flex; gap: 5px; margin-bottom: 10px;">
-                    <input type="text" id="kazuma_url" class="text_pole" value="http://127.0.0.1:8188" placeholder="API URL" style="flex:1;" />
-                    <button id="kazuma_test_btn" class="menu_button" title="Test Connection"><i class="fa-solid fa-wifi"></i></button>
+                    <input type="text" id="kazuma_url" class="text_pole" value="http://127.0.0.1:8188"
+                        placeholder="API URL" style="flex:1;" />
+                    <button id="kazuma_test_btn" class="menu_button" title="Test Connection"><i
+                            class="fa-solid fa-wifi"></i></button>
                 </div>
 
                 <div class="kazuma-sub-label">Active Workflow</div>
@@ -131,14 +150,15 @@
                     </div>
 
                     <div class="kazuma-sub-label">Resolution</div>
-                    <select id="kazuma_resolution_list" class="text_pole" style="width:100%; margin-bottom:5px;"></select>
+                    <select id="kazuma_resolution_list" class="text_pole"
+                        style="width:100%; margin-bottom:5px;"></select>
                     <div style="display:flex; gap:5px; align-items:center;">
                         <input type="number" id="kazuma_width" class="text_pole" placeholder="W" style="flex:1">
                         <span>x</span>
                         <input type="number" id="kazuma_height" class="text_pole" placeholder="H" style="flex:1">
                     </div>
 
-                     <div class="kazuma-sub-label">Seed (-1 for random)</div>
+                    <div class="kazuma-sub-label">Seed (-1 for random)</div>
                     <input type="number" id="kazuma_seed" class="text_pole" style="width:100%">
                 </div>
             </details>
@@ -157,7 +177,7 @@
                         </div>
                     </div>
                     <!-- Slot 2 -->
-                     <div class="kazuma-lora-box">
+                    <div class="kazuma-lora-box">
                         <div class="kazuma-sub-label">LoRA 2</div>
                         <select id="kazuma_lora_list_2" class="text_pole" style="width:100%"></select>
                         <div class="kazuma-slider-row" style="margin-top:5px;">
@@ -189,8 +209,134 @@
             <!-- Negative Prompt -->
             <div class="kazuma-group">
                 <div class="kazuma-header">Negative Prompt Override</div>
-                <textarea id="kazuma_negative" class="text_pole" rows="2" style="width:100%; font-size:12px; margin-top:5px;"></textarea>
+                <textarea id="kazuma_negative" class="text_pole" rows="2"
+                    style="width:100%; font-size:12px; margin-top:5px;"></textarea>
             </div>
+
+            <!-- Collapsible 3: Avatar & Advanced Options -->
+            <details class="kazuma-details">
+                <summary><i class="fa-solid fa-image"></i> Avatar & Advanced</summary>
+                <div class="kazuma-content">
+                    <div class="kazuma-sub-label"><i class="fa-solid fa-face-grinning"></i> Avatar Injection</div>
+                    <label class="kazuma-row" title="Include character avatar as base64 JPEG in generation">
+                        <span>Character Avatar</span>
+                        <input type="checkbox" id="kazuma_avatar_character" />
+                    </label>
+                    <label class="kazuma-row" title="Include persona/user avatar as base64 JPEG in generation">
+                        <span>Persona Avatar</span>
+                        <input type="checkbox" id="kazuma_avatar_persona" />
+                    </label>
+                    <small style="opacity:0.7; display:block; margin-top:5px;">Requires %char_avatar% or
+                        %persona_avatar% placeholders in workflow.</small>
+                </div>
+            </details>
+
+            <!-- Phase 3: Configuration & Quality Presets -->
+            <details class="kazuma-details">
+                <summary><i class="fa-solid fa-gear"></i> Configuration & Presets</summary>
+                <div class="kazuma-content">
+                    <div class="kazuma-sub-label">Quality Preset</div>
+                    <select id="kazuma_quality_preset" class="text_pole" style="width:100%; margin-bottom:10px;">
+                        <option value="low">Low (Fast, Lower Quality)</option>
+                        <option value="medium" selected>Medium (Balanced)</option>
+                        <option value="high">High (Better Quality)</option>
+                        <option value="ultra">Ultra (Maximum Quality)</option>
+                    </select>
+
+                    <div class="kazuma-sub-label">Prompt Templates</div>
+                    <select id="kazuma_prompt_template" class="text_pole" style="width:100%; margin-bottom:5px;">
+                        <option value="">-- No Template --</option>
+                    </select>
+                    <div style="display:flex; gap:5px; margin-bottom:10px;">
+                        <button id="kazuma_save_template_btn" class="menu_button" style="flex:1;"
+                            title="Save current prompt settings as template">
+                            <i class="fa-solid fa-save"></i> Save Template
+                        </button>
+                        <button id="kazuma_delete_template_btn" class="menu_button" style="flex:1;"
+                            title="Delete selected prompt template">
+                            <i class="fa-solid fa-trash"></i> Delete
+                        </button>
+                    </div>
+
+                    <div class="kazuma-sub-label">Settings Management</div>
+                    <div style="display:flex; gap:5px;">
+                        <button id="kazuma_export_settings_btn" class="menu_button" style="flex:1;"
+                            title="Export all settings to JSON file">
+                            <i class="fa-solid fa-download"></i> Export
+                        </button>
+                        <button id="kazuma_import_settings_btn" class="menu_button" style="flex:1;"
+                            title="Import settings from JSON file">
+                            <i class="fa-solid fa-upload"></i> Import
+                        </button>
+                    </div>
+                </div>
+            </details>
+
+            <!-- Phase 5: Batch Generation -->
+            <details class="kazuma-details">
+                <summary><i class="fa-solid fa-layer-group"></i> Batch Generation</summary>
+                <div class="kazuma-content">
+                    <label class="kazuma-row" title="Enable sequential batch generation with multiple seeds">
+                        <span>Batch Mode</span>
+                        <input type="checkbox" id="kazuma_batch_mode" />
+                    </label>
+
+                    <div id="kazuma_batch_count_section" style="display:none; margin-top:10px;">
+                        <div class="kazuma-row">
+                            <span>Number of Images:</span>
+                            <input type="number" id="kazuma_batch_count" class="text_pole" min="1" max="100" value="3"
+                                style="width:80px" />
+                        </div>
+                        <small style="opacity:0.7; display:block; margin-top:5px;">Generate multiple images sequentially
+                            with varied seeds.</small>
+                    </div>
+                </div>
+            </details>
+
+            <!-- Phase 6: Caching & Performance -->
+            <details class="kazuma-details">
+                <summary><i class="fa-solid fa-rocket"></i> Performance & Caching</summary>
+                <div class="kazuma-content">
+                    <!-- Performance Statistics -->
+                    <div class="kazuma-sub-label"><i class="fa-solid fa-chart-line"></i> Generation Stats</div>
+                    <div id="kazuma_perf_stats"
+                        style="background:rgba(0,0,0,0.2); padding:8px; border-radius:5px; margin-bottom:10px; font-size:12px;">
+                        <div style="display:flex; justify-content:space-between;">
+                            <span>Last Generation:</span>
+                            <span id="kazuma_last_gen_time">N/A</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between;">
+                            <span>Average Time:</span>
+                            <span id="kazuma_avg_gen_time">N/A</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between;">
+                            <span>Total Count:</span>
+                            <span id="kazuma_total_gens">0</span>
+                        </div>
+                    </div>
+
+                    <hr style="opacity:0.2; margin: 10px 0;">
+
+                    <label class="kazuma-row" title="Cache generation responses to avoid redundant API calls">
+                        <span>Enable Response Caching</span>
+                        <input type="checkbox" id="kazuma_enable_cache" checked />
+                    </label>
+
+                    <div class="kazuma-row" style="margin-top:10px;">
+                        <span>Cache TTL (minutes):</span>
+                        <input type="number" id="kazuma_cache_ttl" class="text_pole" min="1" max="1440" value="60"
+                            style="width:80px" />
+                    </div>
+
+                    <button id="kazuma_clear_cache_btn" class="menu_button" style="width:100%; margin-top:10px;"
+                        title="Clear all cached responses">
+                        <i class="fa-solid fa-broom"></i> Clear Cache
+                    </button>
+
+                    <small style="opacity:0.7; display:block; margin-top:5px;">Caching improves performance for
+                        identical generation requests.</small>
+                </div>
+            </details>
 
             <!-- Manual Action -->
             <button id="kazuma_gen_prompt_btn" class="menu_button" style="width:100%; padding: 10px;">
