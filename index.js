@@ -1480,180 +1480,185 @@ async function onComfyOpenWorkflowEditorClick() {
                 toastr.error("Save Failed: " + e.message);
             }
         }
+    } catch (error) {
+        const msg = error.message || String(error);
+        console.error(`[${extensionName}] Workflow editor error:`, msg);
+        toastr.error(`Workflow editor error: ${msg}`);
     }
+}
 
 
 
 // --- FETCH LISTS ---
 async function fetchComfyLists() {
-        const comfyUrl = extension_settings[extensionName].comfyUrl;
-        const modelSel = $("#kazuma_model_list");
-        const samplerSel = $("#kazuma_sampler_list");
-        const loraSelectors = [$("#kazuma_lora_list"), $("#kazuma_lora_list_2"), $("#kazuma_lora_list_3"), $("#kazuma_lora_list_4")];
+    const comfyUrl = extension_settings[extensionName].comfyUrl;
+    const modelSel = $("#kazuma_model_list");
+    const samplerSel = $("#kazuma_sampler_list");
+    const loraSelectors = [$("#kazuma_lora_list"), $("#kazuma_lora_list_2"), $("#kazuma_lora_list_3"), $("#kazuma_lora_list_4")];
 
-        try {
-            // Fetch models with timeout
-            const modelRes = await fetchWithTimeout('/api/sd/comfy/models', {
-                method: 'POST',
-                headers: getRequestHeaders(),
-                body: JSON.stringify({ url: comfyUrl })
-            }, 30000);
+    try {
+        // Fetch models with timeout
+        const modelRes = await fetchWithTimeout('/api/sd/comfy/models', {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            body: JSON.stringify({ url: comfyUrl })
+        }, 30000);
 
-            if (modelRes.ok) {
-                const models = await modelRes.json();
-                modelSel.empty().append('<option value="">-- Select Model --</option>');
-                models.forEach(m => {
-                    let val = (typeof m === 'object' && m !== null) ? m.value : m;
-                    let text = (typeof m === 'object' && m !== null && m.text) ? m.text : val;
-                    modelSel.append(`<option value="${val}">${text}</option>`);
-                });
-                if (extension_settings[extensionName].selectedModel) modelSel.val(extension_settings[extensionName].selectedModel);
-            } else {
-                console.warn(`[${extensionName}] Failed to fetch models (HTTP ${modelRes.status})`);
-            }
-
-            // Fetch samplers with timeout
-            const samplerRes = await fetchWithTimeout('/api/sd/comfy/samplers', {
-                method: 'POST',
-                headers: getRequestHeaders(),
-                body: JSON.stringify({ url: comfyUrl })
-            }, 30000);
-
-            if (samplerRes.ok) {
-                const samplers = await samplerRes.json();
-                samplerSel.empty();
-                samplers.forEach(s => samplerSel.append(`<option value="${s}">${s}</option>`));
-                if (extension_settings[extensionName].selectedSampler) samplerSel.val(extension_settings[extensionName].selectedSampler);
-            } else {
-                console.warn(`[${extensionName}] Failed to fetch samplers (HTTP ${samplerRes.status})`);
-            }
-
-            // Fetch LoRAs from ComfyUI directly with timeout
-            const loraRes = await fetchWithTimeout(`${comfyUrl}/object_info/LoraLoader`, {}, 30000);
-
-            if (loraRes.ok) {
-                const json = await loraRes.json();
-                const files = json['LoraLoader'].input.required.lora_name[0];
-                loraSelectors.forEach((sel, i) => {
-                    const k = i === 0 ? "selectedLora" : `selectedLora${i + 1}`;
-                    const v = extension_settings[extensionName][k];
-                    sel.empty().append('<option value="">-- No LoRA --</option>');
-                    files.forEach(f => sel.append(`<option value="${f}">${f}</option>`));
-                    if (v) sel.val(v);
-                });
-            } else {
-                console.warn(`[${extensionName}] Failed to fetch LoRAs (HTTP ${loraRes.status})`);
-            }
-        } catch (e) {
-            const errorMsg = getDetailedErrorMessage(e, { url: extension_settings[extensionName].comfyUrl, method: 'POST' });
-            console.warn(`[${extensionName}] Failed to fetch lists: ${errorMsg}`);
+        if (modelRes.ok) {
+            const models = await modelRes.json();
+            modelSel.empty().append('<option value="">-- Select Model --</option>');
+            models.forEach(m => {
+                let val = (typeof m === 'object' && m !== null) ? m.value : m;
+                let text = (typeof m === 'object' && m !== null && m.text) ? m.text : val;
+                modelSel.append(`<option value="${val}">${text}</option>`);
+            });
+            if (extension_settings[extensionName].selectedModel) modelSel.val(extension_settings[extensionName].selectedModel);
+        } else {
+            console.warn(`[${extensionName}] Failed to fetch models (HTTP ${modelRes.status})`);
         }
-    }
 
-    async function onTestConnection() {
-        const url = extension_settings[extensionName].comfyUrl;
-        try {
-            const result = await fetchWithTimeout('/api/sd/comfy/ping', {
-                method: 'POST',
-                headers: getRequestHeaders(),
-                body: JSON.stringify({ url: url })
-            }, 30000);
+        // Fetch samplers with timeout
+        const samplerRes = await fetchWithTimeout('/api/sd/comfy/samplers', {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            body: JSON.stringify({ url: comfyUrl })
+        }, 30000);
 
-            if (result.ok) {
-                toastr.success("ComfyUI API connected!", "Image Gen Kazuma");
-                await fetchComfyLists();
-            } else {
-                const detailedMsg = getDetailedErrorMessage(
-                    new Error(`Ping failed with status ${result.status}`),
-                    { response: result, url: url, method: 'POST' }
-                );
-                throw new Error(detailedMsg);
-            }
-        } catch (error) {
-            const msg = error.message || String(error);
-            toastr.error(msg, "Image Gen Kazuma - Connection Error");
+        if (samplerRes.ok) {
+            const samplers = await samplerRes.json();
+            samplerSel.empty();
+            samplers.forEach(s => samplerSel.append(`<option value="${s}">${s}</option>`));
+            if (extension_settings[extensionName].selectedSampler) samplerSel.val(extension_settings[extensionName].selectedSampler);
+        } else {
+            console.warn(`[${extensionName}] Failed to fetch samplers (HTTP ${samplerRes.status})`);
         }
+
+        // Fetch LoRAs from ComfyUI directly with timeout
+        const loraRes = await fetchWithTimeout(`${comfyUrl}/object_info/LoraLoader`, {}, 30000);
+
+        if (loraRes.ok) {
+            const json = await loraRes.json();
+            const files = json['LoraLoader'].input.required.lora_name[0];
+            loraSelectors.forEach((sel, i) => {
+                const k = i === 0 ? "selectedLora" : `selectedLora${i + 1}`;
+                const v = extension_settings[extensionName][k];
+                sel.empty().append('<option value="">-- No LoRA --</option>');
+                files.forEach(f => sel.append(`<option value="${f}">${f}</option>`));
+                if (v) sel.val(v);
+            });
+        } else {
+            console.warn(`[${extensionName}] Failed to fetch LoRAs (HTTP ${loraRes.status})`);
+        }
+    } catch (e) {
+        const errorMsg = getDetailedErrorMessage(e, { url: extension_settings[extensionName].comfyUrl, method: 'POST' });
+        console.warn(`[${extensionName}] Failed to fetch lists: ${errorMsg}`);
     }
+}
 
-    /* --- UPDATED GENERATION LOGIC --- */
-    async function onGeneratePrompt() {
-        if (!extension_settings[extensionName].enabled) return;
-        const context = getContext();
-        if (!context.chat || context.chat.length === 0) return toastr.warning("No chat history.");
+async function onTestConnection() {
+    const url = extension_settings[extensionName].comfyUrl;
+    try {
+        const result = await fetchWithTimeout('/api/sd/comfy/ping', {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            body: JSON.stringify({ url: url })
+        }, 30000);
 
-        // Phase 5: Check if batch mode is enabled
-        const s = extension_settings[extensionName];
-        if (s.batchMode && s.batchCount && s.batchCount > 1) {
-            toastr.info(`Starting batch generation (${s.batchCount} images)...`);
-            initializeBatchQueue(s.batchCount);
-            showKazumaProgress(`Preparing batch queue...`);
-
-            processBatchQueue(
-                (current, total) => {
-                    showKazumaProgress(`Batch Progress: ${current}/${total}`);
-                },
-                (results) => {
-                    const successCount = results.filter(r => r.success).length;
-                    const failCount = results.filter(r => !r.success).length;
-                    hideKazumaProgress();
-                    toastr.success(`Batch complete! ${successCount} succeeded, ${failCount} failed.`);
-                }
+        if (result.ok) {
+            toastr.success("ComfyUI API connected!", "Image Gen Kazuma");
+            await fetchComfyLists();
+        } else {
+            const detailedMsg = getDetailedErrorMessage(
+                new Error(`Ping failed with status ${result.status}`),
+                { response: result, url: url, method: 'POST' }
             );
-            return;
+            throw new Error(detailedMsg);
         }
+    } catch (error) {
+        const msg = error.message || String(error);
+        toastr.error(msg, "Image Gen Kazuma - Connection Error");
+    }
+}
 
-        const strategy = extension_settings[extensionName].profileStrategy || "current";
-        const requestProfile = extension_settings[extensionName].connectionProfile;
-        const targetDropdown = $("#settings_preset_openai");
-        const originalProfile = targetDropdown.val();
-        let didSwitch = false;
+/* --- UPDATED GENERATION LOGIC --- */
+async function onGeneratePrompt() {
+    if (!extension_settings[extensionName].enabled) return;
+    const context = getContext();
+    if (!context.chat || context.chat.length === 0) return toastr.warning("No chat history.");
 
-        if (strategy === "specific" && requestProfile && requestProfile !== originalProfile && requestProfile !== "") {
-            toastr.info(`Switching presets...`);
-            targetDropdown.val(requestProfile).trigger("change");
-            await new Promise(r => setTimeout(r, 1000));
-            didSwitch = true;
-        }
+    // Phase 5: Check if batch mode is enabled
+    const s = extension_settings[extensionName];
+    if (s.batchMode && s.batchCount && s.batchCount > 1) {
+        toastr.info(`Starting batch generation (${s.batchCount} images)...`);
+        initializeBatchQueue(s.batchCount);
+        showKazumaProgress(`Preparing batch queue...`);
 
-        // [START PROGRESS]
-        showKazumaProgress("Generating Prompt...");
+        processBatchQueue(
+            (current, total) => {
+                showKazumaProgress(`Batch Progress: ${current}/${total}`);
+            },
+            (results) => {
+                const successCount = results.filter(r => r.success).length;
+                const failCount = results.filter(r => !r.success).length;
+                hideKazumaProgress();
+                toastr.success(`Batch complete! ${successCount} succeeded, ${failCount} failed.`);
+            }
+        );
+        return;
+    }
 
-        try {
-            toastr.info("Visualizing...", "Image Gen Kazuma");
-            const lastMessage = context.chat[context.chat.length - 1].mes;
-            const s = extension_settings[extensionName];
+    const strategy = extension_settings[extensionName].profileStrategy || "current";
+    const requestProfile = extension_settings[extensionName].connectionProfile;
+    const targetDropdown = $("#settings_preset_openai");
+    const originalProfile = targetDropdown.val();
+    let didSwitch = false;
 
-            const style = s.promptStyle || "standard";
-            const persp = s.promptPerspective || "scene";
-            const artStyle = s.promptArtStyle || "realistic";
-            const extra = s.promptExtra ? `, ${s.promptExtra}` : "";
+    if (strategy === "specific" && requestProfile && requestProfile !== originalProfile && requestProfile !== "") {
+        toastr.info(`Switching presets...`);
+        targetDropdown.val(requestProfile).trigger("change");
+        await new Promise(r => setTimeout(r, 1000));
+        didSwitch = true;
+    }
 
-            let styleInst = "", perspInst = "", artStyleInst = "";
+    // [START PROGRESS]
+    showKazumaProgress("Generating Prompt...");
 
-            // Format constraint based on model/prompt style
-            if (style === "illustrious") styleInst = "Use Booru-style tags (e.g., 1girl, solo, blue hair). Focus on anime aesthetics.";
-            else if (style === "sdxl") styleInst = "Use natural language sentences. Focus on photorealism and detailed textures.";
-            else styleInst = "Use a list of detailed keywords/descriptors.";
+    try {
+        toastr.info("Visualizing...", "Image Gen Kazuma");
+        const lastMessage = context.chat[context.chat.length - 1].mes;
+        const s = extension_settings[extensionName];
 
-            // Perspective constraint
-            if (persp === "pov") perspInst = "Describe the scene from a First Person (POV) perspective, looking at the character.";
-            else if (persp === "character") perspInst = "Focus intensely on the character's appearance and expression, ignoring background details.";
-            else perspInst = "Describe the entire environment and atmosphere.";
+        const style = s.promptStyle || "standard";
+        const persp = s.promptPerspective || "scene";
+        const artStyle = s.promptArtStyle || "realistic";
+        const extra = s.promptExtra ? `, ${s.promptExtra}` : "";
 
-            // Art style constraint
-            if (artStyle === "realistic") artStyleInst = "Photorealistic, high-fidelity, lifelike portraits and landscapes with fine details and natural lighting.";
-            else if (artStyle === "anime") artStyleInst = "2D/3D anime art style, pastel illustrations, expressive eyes, stylized character features, manga-influenced compositions.";
-            else if (artStyle === "3d") artStyleInst = "3D rendered quality, CGI-style, computer-generated imagery resembling Pixar or animated movies, glossy surfaces, smooth shading.";
-            else if (artStyle === "fantasy") artStyleInst = "Mystical and epic fantasy art, magical elements, fantastical landscapes, dragons, enchanted forests, otherworldly aesthetics.";
-            else if (artStyle === "painterly") artStyleInst = "Artistic painting styles including oil painting, watercolors, acrylic, sketches, impressionism, or hand-drawn illustrations.";
-            else if (artStyle === "cinematic") artStyleInst = "Dramatic movie-still quality, professional cinematography, theatrical lighting, epic composition, Hollywood blockbuster aesthetic.";
-            else if (artStyle === "pixel") artStyleInst = "Pixel art, low-resolution retro gaming style, 8-bit or 16-bit aesthetic, chunky pixels, limited color palette.";
-            else if (artStyle === "lineart") artStyleInst = "Black and white line drawings, coloring book style, simple clean lines, minimalist illustration, sketch-like appearance.";
-            else if (artStyle === "scifi") artStyleInst = "Science fiction aesthetic, futuristic technology, cyberpunk cityscapes, neon colors, sci-fi environments, space settings.";
-            else if (artStyle === "cartoon") artStyleInst = "Western cartoon and comic book style, playful and exaggerated forms, bold outlines, vibrant colors, comic panel compositions.";
-            else artStyleInst = "High-quality detailed illustration.";
+        let styleInst = "", perspInst = "", artStyleInst = "";
 
-            const instruction = `
+        // Format constraint based on model/prompt style
+        if (style === "illustrious") styleInst = "Use Booru-style tags (e.g., 1girl, solo, blue hair). Focus on anime aesthetics.";
+        else if (style === "sdxl") styleInst = "Use natural language sentences. Focus on photorealism and detailed textures.";
+        else styleInst = "Use a list of detailed keywords/descriptors.";
+
+        // Perspective constraint
+        if (persp === "pov") perspInst = "Describe the scene from a First Person (POV) perspective, looking at the character.";
+        else if (persp === "character") perspInst = "Focus intensely on the character's appearance and expression, ignoring background details.";
+        else perspInst = "Describe the entire environment and atmosphere.";
+
+        // Art style constraint
+        if (artStyle === "realistic") artStyleInst = "Photorealistic, high-fidelity, lifelike portraits and landscapes with fine details and natural lighting.";
+        else if (artStyle === "anime") artStyleInst = "2D/3D anime art style, pastel illustrations, expressive eyes, stylized character features, manga-influenced compositions.";
+        else if (artStyle === "3d") artStyleInst = "3D rendered quality, CGI-style, computer-generated imagery resembling Pixar or animated movies, glossy surfaces, smooth shading.";
+        else if (artStyle === "fantasy") artStyleInst = "Mystical and epic fantasy art, magical elements, fantastical landscapes, dragons, enchanted forests, otherworldly aesthetics.";
+        else if (artStyle === "painterly") artStyleInst = "Artistic painting styles including oil painting, watercolors, acrylic, sketches, impressionism, or hand-drawn illustrations.";
+        else if (artStyle === "cinematic") artStyleInst = "Dramatic movie-still quality, professional cinematography, theatrical lighting, epic composition, Hollywood blockbuster aesthetic.";
+        else if (artStyle === "pixel") artStyleInst = "Pixel art, low-resolution retro gaming style, 8-bit or 16-bit aesthetic, chunky pixels, limited color palette.";
+        else if (artStyle === "lineart") artStyleInst = "Black and white line drawings, coloring book style, simple clean lines, minimalist illustration, sketch-like appearance.";
+        else if (artStyle === "scifi") artStyleInst = "Science fiction aesthetic, futuristic technology, cyberpunk cityscapes, neon colors, sci-fi environments, space settings.";
+        else if (artStyle === "cartoon") artStyleInst = "Western cartoon and comic book style, playful and exaggerated forms, bold outlines, vibrant colors, comic panel compositions.";
+        else artStyleInst = "High-quality detailed illustration.";
+
+        const instruction = `
             Task: Write an image generation prompt for the following scene.
             Scene: "${lastMessage}"
             Format: ${styleInst}
@@ -1663,411 +1668,411 @@ async function fetchComfyLists() {
             Output ONLY the prompt text.
             `;
 
-            let generatedText = await generateQuietPrompt(instruction, true);
+        let generatedText = await generateQuietPrompt(instruction, true);
 
-            if (didSwitch) {
-                targetDropdown.val(originalProfile).trigger("change");
-                await new Promise(r => setTimeout(r, 500));
-            }
+        if (didSwitch) {
+            targetDropdown.val(originalProfile).trigger("change");
+            await new Promise(r => setTimeout(r, 500));
+        }
 
-            if (s.debugPrompt) {
-                // Hide progress while user is confirming
-                hideKazumaProgress();
+        if (s.debugPrompt) {
+            // Hide progress while user is confirming
+            hideKazumaProgress();
 
-                const $content = $(`
+            const $content = $(`
                 <div style="display: flex; flex-direction: column; gap: 10px;">
                     <p><b>Review generated prompt:</b></p>
                     <textarea class="text_pole" rows="6" style="width:100%; resize:vertical; font-family:monospace;">${generatedText}</textarea>
                 </div>
             `);
-                let currentText = generatedText;
-                $content.find("textarea").on("input", function () { currentText = $(this).val(); });
-                const popup = new Popup($content, POPUP_TYPE.CONFIRM, "Diagnostic Mode", { okButton: "Send", cancelButton: "Stop" });
-                const confirmed = await popup.show();
+            let currentText = generatedText;
+            $content.find("textarea").on("input", function () { currentText = $(this).val(); });
+            const popup = new Popup($content, POPUP_TYPE.CONFIRM, "Diagnostic Mode", { okButton: "Send", cancelButton: "Stop" });
+            const confirmed = await popup.show();
 
-                if (!confirmed) {
-                    toastr.info("Generation stopped by user.");
-                    return;
-                }
-                generatedText = currentText;
-                // Show progress again
-                showKazumaProgress("Sending to ComfyUI...");
+            if (!confirmed) {
+                toastr.info("Generation stopped by user.");
+                return;
             }
-
-            // Update progress text
+            generatedText = currentText;
+            // Show progress again
             showKazumaProgress("Sending to ComfyUI...");
-            await generateWithComfy(generatedText, null);
-
-        } catch (err) {
-            // [HIDE PROGRESS ON ERROR]
-            hideKazumaProgress();
-            if (didSwitch) targetDropdown.val(originalProfile).trigger("change");
-            console.error(err);
-            toastr.error("Generation failed. Check console.");
         }
+
+        // Update progress text
+        showKazumaProgress("Sending to ComfyUI...");
+        await generateWithComfy(generatedText, null);
+
+    } catch (err) {
+        // [HIDE PROGRESS ON ERROR]
+        hideKazumaProgress();
+        if (didSwitch) targetDropdown.val(originalProfile).trigger("change");
+        console.error(err);
+        toastr.error("Generation failed. Check console.");
+    }
+}
+
+async function generateWithComfy(positivePrompt, target = null) {
+    const url = extension_settings[extensionName].comfyUrl;
+    const currentName = extension_settings[extensionName].currentWorkflowName;
+    const s = extension_settings[extensionName];
+
+    // Performance tracking: Start timer
+    const generationStartTime = Date.now();
+
+    // Phase 6: Check cache for identical generation parameters
+    const cacheParams = {
+        input: positivePrompt,
+        style: s.promptStyle,
+        perspective: s.promptPerspective,
+        artStyle: s.promptArtStyle,
+        width: s.imgWidth,
+        height: s.imgHeight,
+        model: s.selectedModel,
+        sampler: s.selectedSampler,
+        steps: s.steps,
+        cfg: s.cfg
+    };
+    const cachedResponse = getCachedResponse(cacheParams);
+    if (cachedResponse) {
+        toastr.success("Using cached response!", "Image Gen Kazuma");
+        hideKazumaProgress();
+        // In a full implementation, you would display the cached image here
+        return cachedResponse;
     }
 
-    async function generateWithComfy(positivePrompt, target = null) {
-        const url = extension_settings[extensionName].comfyUrl;
-        const currentName = extension_settings[extensionName].currentWorkflowName;
-        const s = extension_settings[extensionName];
+    // Load from server
+    let workflowRaw;
+    try {
+        const res = await fetchWithTimeout('/api/sd/comfy/workflow', {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            body: JSON.stringify({ file_name: currentName })
+        }, 30000);
 
-        // Performance tracking: Start timer
-        const generationStartTime = Date.now();
-
-        // Phase 6: Check cache for identical generation parameters
-        const cacheParams = {
-            input: positivePrompt,
-            style: s.promptStyle,
-            perspective: s.promptPerspective,
-            artStyle: s.promptArtStyle,
-            width: s.imgWidth,
-            height: s.imgHeight,
-            model: s.selectedModel,
-            sampler: s.selectedSampler,
-            steps: s.steps,
-            cfg: s.cfg
-        };
-        const cachedResponse = getCachedResponse(cacheParams);
-        if (cachedResponse) {
-            toastr.success("Using cached response!", "Image Gen Kazuma");
-            hideKazumaProgress();
-            // In a full implementation, you would display the cached image here
-            return cachedResponse;
+        if (!res.ok) {
+            const detailedMsg = getDetailedErrorMessage(
+                new Error(`Failed with status ${res.status}`),
+                { response: res, url: '/api/sd/comfy/workflow', method: 'POST' }
+            );
+            throw new Error(detailedMsg);
         }
-
-        // Load from server
-        let workflowRaw;
-        try {
-            const res = await fetchWithTimeout('/api/sd/comfy/workflow', {
-                method: 'POST',
-                headers: getRequestHeaders(),
-                body: JSON.stringify({ file_name: currentName })
-            }, 30000);
-
-            if (!res.ok) {
-                const detailedMsg = getDetailedErrorMessage(
-                    new Error(`Failed with status ${res.status}`),
-                    { response: res, url: '/api/sd/comfy/workflow', method: 'POST' }
-                );
-                throw new Error(detailedMsg);
-            }
-            workflowRaw = await res.json();
-        } catch (e) {
-            toastr.error(`Could not load workflow '${currentName}': ${e.message}`);
-            hideKazumaProgress();
-            return;
-        }
-
-        let workflow = (typeof workflowRaw === 'string') ? JSON.parse(workflowRaw) : workflowRaw;
-
-        let finalSeed = parseInt(extension_settings[extensionName].customSeed);
-        if (finalSeed === -1 || isNaN(finalSeed)) {
-            finalSeed = Math.floor(Math.random() * 1000000000);
-        }
-
-        workflow = injectParamsIntoWorkflow(workflow, positivePrompt, finalSeed);
-
-        try {
-            // Phase 4: Inject character/persona avatars as base64 JPEG if enabled
-            if (s.avatarIncludeCharacter || s.avatarIncludePersona) {
-                showKazumaProgress("Processing avatars...");
-                workflow = await injectAvatarPlaceholders(workflow, s.avatarIncludeCharacter, s.avatarIncludePersona);
-            }
-
-            // Validate workflow structure before sending to ComfyUI (Phase 2 Safety)
-            validateWorkflowJSON(workflow);
-
-            toastr.info("Sending to ComfyUI...", "Image Gen Kazuma");
-            showKazumaProgress("Submitting to ComfyUI...");
-
-            const res = await fetchWithTimeout(`${url}/prompt`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt: workflow })
-            }, 30000);
-
-            if (!res.ok) {
-                const detailedMsg = getDetailedErrorMessage(
-                    new Error(`Failed with status ${res.status}`),
-                    { response: res, url: `${url}/prompt`, method: 'POST' }
-                );
-                throw new Error(detailedMsg);
-            }
-
-            const data = await res.json();
-            await waitForGeneration(url, data.prompt_id, positivePrompt, target);
-
-            // Performance tracking: Calculate generation time
-            const generationTime = Date.now() - generationStartTime;
-            s.lastGenerationTime = generationTime;
-            s.totalGenerations++;
-
-            // Update rolling average
-            if (s.totalGenerations === 1) {
-                s.averageGenerationTime = generationTime;
-            } else {
-                s.averageGenerationTime = Math.round(
-                    (s.averageGenerationTime * (s.totalGenerations - 1) + generationTime) / s.totalGenerations
-                );
-            }
-
-            saveSettingsDebounced();
-
-            // Update performance stats UI
-            updatePerformanceStats();
-
-            // Show generation time
-            const timeSeconds = (generationTime / 1000).toFixed(1);
-            console.log(`[${extensionName}] Generation completed in ${timeSeconds}s`);
-            toastr.info(`Generated in ${timeSeconds}s`, "Performance");
-        } catch (e) {
-            const errorMsg = e.message || String(e);
-            toastr.error(errorMsg, "Image Gen Kazuma - Error");
-            hideKazumaProgress();
-        }
+        workflowRaw = await res.json();
+    } catch (e) {
+        toastr.error(`Could not load workflow '${currentName}': ${e.message}`);
+        hideKazumaProgress();
+        return;
     }
 
-    function injectParamsIntoWorkflow(workflow, promptText, finalSeed) {
-        const s = extension_settings[extensionName];
-        let seedInjected = false;
+    let workflow = (typeof workflowRaw === 'string') ? JSON.parse(workflowRaw) : workflowRaw;
 
-        for (const nodeId in workflow) {
-            const node = workflow[nodeId];
-            if (node.inputs) {
-                for (const key in node.inputs) {
-                    const val = node.inputs[key];
+    let finalSeed = parseInt(extension_settings[extensionName].customSeed);
+    if (finalSeed === -1 || isNaN(finalSeed)) {
+        finalSeed = Math.floor(Math.random() * 1000000000);
+    }
 
-                    // Support both *token* and %token% formats (Phase 4)
-                    if (val === "*input*" || val === "%input%") node.inputs[key] = promptText;
-                    if (val === "*ninput*" || val === "%ninput%") node.inputs[key] = s.customNegative || "";
-                    if (val === "*seed*") { node.inputs[key] = finalSeed; seedInjected = true; }
-                    if (val === "*sampler*") node.inputs[key] = s.selectedSampler || "euler";
-                    if (val === "*model*") node.inputs[key] = s.selectedModel || "v1-5-pruned.ckpt";
+    workflow = injectParamsIntoWorkflow(workflow, positivePrompt, finalSeed);
 
-                    // Use validated/clamped numeric values (Phase 2 Validation)
-                    if (val === "*steps*") node.inputs[key] = validateAndClampNumber(s.steps, 1, 150, 20);
-                    if (val === "*cfg*") node.inputs[key] = validateAndClampNumber(s.cfg, 0, 30, 7.0);
-                    if (val === "*denoise*") node.inputs[key] = validateAndClampNumber(s.denoise, 0, 1, 1.0);
-                    if (val === "*clip_skip*") node.inputs[key] = -Math.abs(validateAndClampNumber(s.clipSkip, 1, 12, 1));
+    try {
+        // Phase 4: Inject character/persona avatars as base64 JPEG if enabled
+        if (s.avatarIncludeCharacter || s.avatarIncludePersona) {
+            showKazumaProgress("Processing avatars...");
+            workflow = await injectAvatarPlaceholders(workflow, s.avatarIncludeCharacter, s.avatarIncludePersona);
+        }
 
-                    if (val === "*lora*") node.inputs[key] = s.selectedLora || "None";
-                    if (val === "*lora2*") node.inputs[key] = s.selectedLora2 || "None";
-                    if (val === "*lora3*") node.inputs[key] = s.selectedLora3 || "None";
-                    if (val === "*lora4*") node.inputs[key] = s.selectedLora4 || "None";
-                    if (val === "*lorawt*") node.inputs[key] = validateAndClampNumber(s.selectedLoraWt, 0, 2, 1.0);
-                    if (val === "*lorawt2*") node.inputs[key] = validateAndClampNumber(s.selectedLoraWt2, 0, 2, 1.0);
-                    if (val === "*lorawt3*") node.inputs[key] = validateAndClampNumber(s.selectedLoraWt3, 0, 2, 1.0);
-                    if (val === "*lorawt4*") node.inputs[key] = validateAndClampNumber(s.selectedLoraWt4, 0, 2, 1.0);
+        // Validate workflow structure before sending to ComfyUI (Phase 2 Safety)
+        validateWorkflowJSON(workflow);
 
-                    if (val === "*width*") node.inputs[key] = validateAndClampNumber(s.imgWidth, 256, 2048, 512);
-                    if (val === "*height*") node.inputs[key] = validateAndClampNumber(s.imgHeight, 256, 2048, 512);
+        toastr.info("Sending to ComfyUI...", "Image Gen Kazuma");
+        showKazumaProgress("Submitting to ComfyUI...");
 
-                    // Phase 4: New variables from workflow analysis
-                    if (val === "*batch_size*") node.inputs[key] = validateAndClampNumber(1, 1, 16, 1); // Typically 1 for single generation
-                    if (val === "*max_size*") node.inputs[key] = validateAndClampNumber(2048, 256, 4096, 2048);
-                    if (val === "*bbox_crop_factor*") node.inputs[key] = validateAndClampNumber(1.0, 0.5, 2.0, 1.0);
+        const res = await fetchWithTimeout(`${url}/prompt`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: workflow })
+        }, 30000);
+
+        if (!res.ok) {
+            const detailedMsg = getDetailedErrorMessage(
+                new Error(`Failed with status ${res.status}`),
+                { response: res, url: `${url}/prompt`, method: 'POST' }
+            );
+            throw new Error(detailedMsg);
+        }
+
+        const data = await res.json();
+        await waitForGeneration(url, data.prompt_id, positivePrompt, target);
+
+        // Performance tracking: Calculate generation time
+        const generationTime = Date.now() - generationStartTime;
+        s.lastGenerationTime = generationTime;
+        s.totalGenerations++;
+
+        // Update rolling average
+        if (s.totalGenerations === 1) {
+            s.averageGenerationTime = generationTime;
+        } else {
+            s.averageGenerationTime = Math.round(
+                (s.averageGenerationTime * (s.totalGenerations - 1) + generationTime) / s.totalGenerations
+            );
+        }
+
+        saveSettingsDebounced();
+
+        // Update performance stats UI
+        updatePerformanceStats();
+
+        // Show generation time
+        const timeSeconds = (generationTime / 1000).toFixed(1);
+        console.log(`[${extensionName}] Generation completed in ${timeSeconds}s`);
+        toastr.info(`Generated in ${timeSeconds}s`, "Performance");
+    } catch (e) {
+        const errorMsg = e.message || String(e);
+        toastr.error(errorMsg, "Image Gen Kazuma - Error");
+        hideKazumaProgress();
+    }
+}
+
+function injectParamsIntoWorkflow(workflow, promptText, finalSeed) {
+    const s = extension_settings[extensionName];
+    let seedInjected = false;
+
+    for (const nodeId in workflow) {
+        const node = workflow[nodeId];
+        if (node.inputs) {
+            for (const key in node.inputs) {
+                const val = node.inputs[key];
+
+                // Support both *token* and %token% formats (Phase 4)
+                if (val === "*input*" || val === "%input%") node.inputs[key] = promptText;
+                if (val === "*ninput*" || val === "%ninput%") node.inputs[key] = s.customNegative || "";
+                if (val === "*seed*") { node.inputs[key] = finalSeed; seedInjected = true; }
+                if (val === "*sampler*") node.inputs[key] = s.selectedSampler || "euler";
+                if (val === "*model*") node.inputs[key] = s.selectedModel || "v1-5-pruned.ckpt";
+
+                // Use validated/clamped numeric values (Phase 2 Validation)
+                if (val === "*steps*") node.inputs[key] = validateAndClampNumber(s.steps, 1, 150, 20);
+                if (val === "*cfg*") node.inputs[key] = validateAndClampNumber(s.cfg, 0, 30, 7.0);
+                if (val === "*denoise*") node.inputs[key] = validateAndClampNumber(s.denoise, 0, 1, 1.0);
+                if (val === "*clip_skip*") node.inputs[key] = -Math.abs(validateAndClampNumber(s.clipSkip, 1, 12, 1));
+
+                if (val === "*lora*") node.inputs[key] = s.selectedLora || "None";
+                if (val === "*lora2*") node.inputs[key] = s.selectedLora2 || "None";
+                if (val === "*lora3*") node.inputs[key] = s.selectedLora3 || "None";
+                if (val === "*lora4*") node.inputs[key] = s.selectedLora4 || "None";
+                if (val === "*lorawt*") node.inputs[key] = validateAndClampNumber(s.selectedLoraWt, 0, 2, 1.0);
+                if (val === "*lorawt2*") node.inputs[key] = validateAndClampNumber(s.selectedLoraWt2, 0, 2, 1.0);
+                if (val === "*lorawt3*") node.inputs[key] = validateAndClampNumber(s.selectedLoraWt3, 0, 2, 1.0);
+                if (val === "*lorawt4*") node.inputs[key] = validateAndClampNumber(s.selectedLoraWt4, 0, 2, 1.0);
+
+                if (val === "*width*") node.inputs[key] = validateAndClampNumber(s.imgWidth, 256, 2048, 512);
+                if (val === "*height*") node.inputs[key] = validateAndClampNumber(s.imgHeight, 256, 2048, 512);
+
+                // Phase 4: New variables from workflow analysis
+                if (val === "*batch_size*") node.inputs[key] = validateAndClampNumber(1, 1, 16, 1); // Typically 1 for single generation
+                if (val === "*max_size*") node.inputs[key] = validateAndClampNumber(2048, 256, 4096, 2048);
+                if (val === "*bbox_crop_factor*") node.inputs[key] = validateAndClampNumber(1.0, 0.5, 2.0, 1.0);
+            }
+            if (!seedInjected && node.class_type === "KSampler" && 'seed' in node.inputs && typeof node.inputs['seed'] === 'number') {
+                node.inputs.seed = finalSeed;
+            }
+        }
+    }
+    return workflow;
+}
+
+async function onImageSwiped(data) {
+    if (!extension_settings[extensionName].enabled) return;
+    const { message, direction, element } = data;
+    const context = getContext();
+    const settings = context.powerUserSettings || window.power_user;
+
+    if (direction !== "right") return;
+    if (settings && settings.image_overswipe !== "generate") return;
+    if (message.name !== "Image Gen Kazuma") return;
+
+    const media = message.extra?.media || [];
+    const idx = message.extra?.media_index || 0;
+
+    if (idx < media.length - 1) return;
+
+    const mediaObj = media[idx];
+    if (!mediaObj || !mediaObj.title) return;
+
+    const prompt = mediaObj.title;
+    toastr.info("New variation...", "Image Gen Kazuma");
+    await generateWithComfy(prompt, { message: message, element: $(element) });
+}
+
+async function waitForGeneration(baseUrl, promptId, positivePrompt, target) {
+    const MAX_ATTEMPTS = 300; // 5 minutes @ 1000ms intervals
+    const CHECK_INTERVAL = 1000; // 1 second
+    let attempts = 0;
+
+    try {
+        showKazumaProgress("Rendering Image...");
+
+        // Poll for completion with timeout protection
+        while (attempts < MAX_ATTEMPTS) {
+            attempts++;
+
+            try {
+                const h = await fetchWithTimeout(`${baseUrl}/history/${promptId}`, {}, 10000);
+
+                if (!h.ok) {
+                    // Handle HTTP errors during polling
+                    if (h.status === 404) {
+                        throw new Error(`Prompt ID ${promptId} not found on server. Check ComfyUI is running.`);
+                    }
+                    throw new Error(`History query failed with status ${h.status}`);
                 }
-                if (!seedInjected && node.class_type === "KSampler" && 'seed' in node.inputs && typeof node.inputs['seed'] === 'number') {
-                    node.inputs.seed = finalSeed;
-                }
-            }
-        }
-        return workflow;
-    }
 
-    async function onImageSwiped(data) {
-        if (!extension_settings[extensionName].enabled) return;
-        const { message, direction, element } = data;
-        const context = getContext();
-        const settings = context.powerUserSettings || window.power_user;
+                const historyData = await h.json();
+                if (historyData[promptId]) {
+                    // Job completed! Process output
+                    const outputs = historyData[promptId].outputs;
+                    let finalImage = null;
 
-        if (direction !== "right") return;
-        if (settings && settings.image_overswipe !== "generate") return;
-        if (message.name !== "Image Gen Kazuma") return;
-
-        const media = message.extra?.media || [];
-        const idx = message.extra?.media_index || 0;
-
-        if (idx < media.length - 1) return;
-
-        const mediaObj = media[idx];
-        if (!mediaObj || !mediaObj.title) return;
-
-        const prompt = mediaObj.title;
-        toastr.info("New variation...", "Image Gen Kazuma");
-        await generateWithComfy(prompt, { message: message, element: $(element) });
-    }
-
-    async function waitForGeneration(baseUrl, promptId, positivePrompt, target) {
-        const MAX_ATTEMPTS = 300; // 5 minutes @ 1000ms intervals
-        const CHECK_INTERVAL = 1000; // 1 second
-        let attempts = 0;
-
-        try {
-            showKazumaProgress("Rendering Image...");
-
-            // Poll for completion with timeout protection
-            while (attempts < MAX_ATTEMPTS) {
-                attempts++;
-
-                try {
-                    const h = await fetchWithTimeout(`${baseUrl}/history/${promptId}`, {}, 10000);
-
-                    if (!h.ok) {
-                        // Handle HTTP errors during polling
-                        if (h.status === 404) {
-                            throw new Error(`Prompt ID ${promptId} not found on server. Check ComfyUI is running.`);
+                    for (const nodeId in outputs) {
+                        const nodeOutput = outputs[nodeId];
+                        if (nodeOutput.images && nodeOutput.images.length > 0) {
+                            finalImage = nodeOutput.images[0];
+                            break;
                         }
-                        throw new Error(`History query failed with status ${h.status}`);
                     }
 
-                    const historyData = await h.json();
-                    if (historyData[promptId]) {
-                        // Job completed! Process output
-                        const outputs = historyData[promptId].outputs;
-                        let finalImage = null;
-
-                        for (const nodeId in outputs) {
-                            const nodeOutput = outputs[nodeId];
-                            if (nodeOutput.images && nodeOutput.images.length > 0) {
-                                finalImage = nodeOutput.images[0];
-                                break;
-                            }
-                        }
-
-                        if (finalImage) {
-                            showKazumaProgress("Downloading...");
-                            const imgUrl = `${baseUrl}/view?filename=${finalImage.filename}&subfolder=${finalImage.subfolder}&type=${finalImage.type}`;
-                            await insertImageToChat(imgUrl, positivePrompt, target);
-                        }
-
-                        // Success - exit loop
-                        break;
+                    if (finalImage) {
+                        showKazumaProgress("Downloading...");
+                        const imgUrl = `${baseUrl}/view?filename=${finalImage.filename}&subfolder=${finalImage.subfolder}&type=${finalImage.type}`;
+                        await insertImageToChat(imgUrl, positivePrompt, target);
                     }
 
-                    // Job not done yet, wait before retry
+                    // Success - exit loop
+                    break;
+                }
+
+                // Job not done yet, wait before retry
+                await new Promise(resolve => setTimeout(resolve, CHECK_INTERVAL));
+
+            } catch (pollingError) {
+                // Network/timeout error during polling retry
+                if (pollingError.message.includes('timeout')) {
+                    // Timeout during individual request - continue polling
                     await new Promise(resolve => setTimeout(resolve, CHECK_INTERVAL));
-
-                } catch (pollingError) {
-                    // Network/timeout error during polling retry
-                    if (pollingError.message.includes('timeout')) {
-                        // Timeout during individual request - continue polling
-                        await new Promise(resolve => setTimeout(resolve, CHECK_INTERVAL));
-                        continue;
-                    }
-                    // Other errors (404, parse) should be thrown
-                    throw pollingError;
+                    continue;
                 }
+                // Other errors (404, parse) should be thrown
+                throw pollingError;
             }
-
-            // Check if we hit max attempts (timeout)
-            if (attempts >= MAX_ATTEMPTS) {
-                const maxWaitMin = (MAX_ATTEMPTS * CHECK_INTERVAL / 60000).toFixed(1);
-                throw new Error(`Generation timeout after ${maxWaitMin} minutes. Check ComfyUI server logs.`);
-            }
-
-        } catch (error) {
-            const detailedMsg = getDetailedErrorMessage(error, { url: baseUrl, method: 'GET' });
-            toastr.error(detailedMsg, "Image Gen Kazuma - Error");
-        } finally {
-            // GUARANTEE cleanup: always hide progress overlay
-            hideKazumaProgress();
         }
-    }
 
-    function blobToBase64(blob) { return new Promise((resolve) => { const reader = new FileReader(); reader.onloadend = () => resolve(reader.result); reader.readAsDataURL(blob); }); }
-
-    function compressImage(base64Str, quality = 0.9) {
-        return new Promise((resolve) => {
-            const img = new Image();
-            img.src = base64Str;
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0);
-                resolve(canvas.toDataURL("image/jpeg", quality));
-            };
-            img.onerror = () => resolve(base64Str);
-        });
-    }
-
-    // --- SAVE TO SERVER ---
-    async function insertImageToChat(imgUrl, promptText, target = null) {
-        try {
-            toastr.info("Downloading image...", "Image Gen Kazuma");
-            const response = await fetchWithTimeout(imgUrl, {}, 30000);
-
-            if (!response.ok) {
-                throw new Error(`Failed to download image (HTTP ${response.status})`);
-            }
-
-            const blob = await response.blob();
-            let base64FullURL = await blobToBase64(blob);
-
-            let format = "png";
-            if (extension_settings[extensionName].compressImages) {
-                base64FullURL = await compressImage(base64FullURL, 0.9);
-                format = "jpeg";
-            }
-
-            const base64Raw = base64FullURL.split(',')[1];
-            const context = getContext();
-            let characterName = "User";
-            if (context.groupId) {
-                characterName = context.groups.find(x => x.id === context.groupId)?.id;
-            } else if (context.characterId) {
-                characterName = context.characters[context.characterId]?.name;
-            }
-            if (!characterName) characterName = "User";
-
-            const filename = `${characterName}_${humanizedDateTime()}`;
-            const savedPath = await saveBase64AsFile(base64Raw, characterName, filename, format);
-
-            const mediaAttachment = {
-                url: savedPath,
-                type: "image",
-                source: "generated",
-                title: promptText,
-                generation_type: "free",
-            };
-
-            if (target && target.message) {
-                if (!target.message.extra) target.message.extra = {};
-                if (!target.message.extra.media) target.message.extra.media = [];
-                target.message.extra.media_display = "gallery";
-                target.message.extra.media.push(mediaAttachment);
-                target.message.extra.media_index = target.message.extra.media.length - 1;
-                if (typeof appendMediaToMessage === "function") appendMediaToMessage(target.message, target.element);
-                await saveChat();
-                toastr.success("Gallery updated!");
-            } else {
-                const newMessage = {
-                    name: "Image Gen Kazuma", is_user: false, is_system: true, send_date: Date.now(),
-                    mes: "", extra: { media: [mediaAttachment], media_display: "gallery", media_index: 0, inline_image: false }, force_avatar: "img/five.png"
-                };
-                context.chat.push(newMessage);
-                await saveChat();
-                if (typeof addOneMessage === "function") addOneMessage(newMessage);
-                else await reloadCurrentChat();
-                toastr.success("Image inserted!");
-            }
-
-        } catch (err) {
-            const errorMsg = getDetailedErrorMessage(err, { url: imgUrl, method: 'GET' });
-            console.error(`[${extensionName}] Image insertion error:`, err);
-            toastr.error(errorMsg, "Image Gen Kazuma - Error");
+        // Check if we hit max attempts (timeout)
+        if (attempts >= MAX_ATTEMPTS) {
+            const maxWaitMin = (MAX_ATTEMPTS * CHECK_INTERVAL / 60000).toFixed(1);
+            throw new Error(`Generation timeout after ${maxWaitMin} minutes. Check ComfyUI server logs.`);
         }
-    }
 
-    // --- INIT ---
-    jQuery(async () => {
-        try {
-            // 1. INJECT PROGRESS BAR HTML (New Code Here)
-            if ($("#kazuma_progress_overlay").length === 0) {
-                $("body").append(`
+    } catch (error) {
+        const detailedMsg = getDetailedErrorMessage(error, { url: baseUrl, method: 'GET' });
+        toastr.error(detailedMsg, "Image Gen Kazuma - Error");
+    } finally {
+        // GUARANTEE cleanup: always hide progress overlay
+        hideKazumaProgress();
+    }
+}
+
+function blobToBase64(blob) { return new Promise((resolve) => { const reader = new FileReader(); reader.onloadend = () => resolve(reader.result); reader.readAsDataURL(blob); }); }
+
+function compressImage(base64Str, quality = 0.9) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.src = base64Str;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.onerror = () => resolve(base64Str);
+    });
+}
+
+// --- SAVE TO SERVER ---
+async function insertImageToChat(imgUrl, promptText, target = null) {
+    try {
+        toastr.info("Downloading image...", "Image Gen Kazuma");
+        const response = await fetchWithTimeout(imgUrl, {}, 30000);
+
+        if (!response.ok) {
+            throw new Error(`Failed to download image (HTTP ${response.status})`);
+        }
+
+        const blob = await response.blob();
+        let base64FullURL = await blobToBase64(blob);
+
+        let format = "png";
+        if (extension_settings[extensionName].compressImages) {
+            base64FullURL = await compressImage(base64FullURL, 0.9);
+            format = "jpeg";
+        }
+
+        const base64Raw = base64FullURL.split(',')[1];
+        const context = getContext();
+        let characterName = "User";
+        if (context.groupId) {
+            characterName = context.groups.find(x => x.id === context.groupId)?.id;
+        } else if (context.characterId) {
+            characterName = context.characters[context.characterId]?.name;
+        }
+        if (!characterName) characterName = "User";
+
+        const filename = `${characterName}_${humanizedDateTime()}`;
+        const savedPath = await saveBase64AsFile(base64Raw, characterName, filename, format);
+
+        const mediaAttachment = {
+            url: savedPath,
+            type: "image",
+            source: "generated",
+            title: promptText,
+            generation_type: "free",
+        };
+
+        if (target && target.message) {
+            if (!target.message.extra) target.message.extra = {};
+            if (!target.message.extra.media) target.message.extra.media = [];
+            target.message.extra.media_display = "gallery";
+            target.message.extra.media.push(mediaAttachment);
+            target.message.extra.media_index = target.message.extra.media.length - 1;
+            if (typeof appendMediaToMessage === "function") appendMediaToMessage(target.message, target.element);
+            await saveChat();
+            toastr.success("Gallery updated!");
+        } else {
+            const newMessage = {
+                name: "Image Gen Kazuma", is_user: false, is_system: true, send_date: Date.now(),
+                mes: "", extra: { media: [mediaAttachment], media_display: "gallery", media_index: 0, inline_image: false }, force_avatar: "img/five.png"
+            };
+            context.chat.push(newMessage);
+            await saveChat();
+            if (typeof addOneMessage === "function") addOneMessage(newMessage);
+            else await reloadCurrentChat();
+            toastr.success("Image inserted!");
+        }
+
+    } catch (err) {
+        const errorMsg = getDetailedErrorMessage(err, { url: imgUrl, method: 'GET' });
+        console.error(`[${extensionName}] Image insertion error:`, err);
+        toastr.error(errorMsg, "Image Gen Kazuma - Error");
+    }
+}
+
+// --- INIT ---
+jQuery(async () => {
+    try {
+        // 1. INJECT PROGRESS BAR HTML (New Code Here)
+        if ($("#kazuma_progress_overlay").length === 0) {
+            $("body").append(`
                 <div id="kazuma_progress_overlay">
                     <div style="flex:1">
                         <span id="kazuma_progress_text">Generating Image...</span>
@@ -2077,142 +2082,142 @@ async function fetchComfyLists() {
                     </div>
                 </div>
             `);
+        }
+
+        // 2. Load Settings & Bind Events
+        await $.get(`${extensionFolderPath}/example.html`).then(h => $("#extensions_settings2").append(h));
+
+        $("#kazuma_enable").on("change", (e) => { extension_settings[extensionName].enabled = $(e.target).prop("checked"); saveSettingsDebounced(); });
+        $("#kazuma_debug").on("change", (e) => { extension_settings[extensionName].debugPrompt = $(e.target).prop("checked"); saveSettingsDebounced(); });
+        $("#kazuma_url").on("input", (e) => { extension_settings[extensionName].comfyUrl = $(e.target).val(); saveSettingsDebounced(); });
+        $("#kazuma_profile").on("change", (e) => { extension_settings[extensionName].connectionProfile = $(e.target).val(); saveSettingsDebounced(); });
+        $("#kazuma_auto_enable").on("change", (e) => { extension_settings[extensionName].autoGenEnabled = $(e.target).prop("checked"); saveSettingsDebounced(); });
+        $("#kazuma_auto_freq").on("input", (e) => { let v = parseInt($(e.target).val()); if (v < 1) v = 1; extension_settings[extensionName].autoGenFreq = v; saveSettingsDebounced(); });
+
+        // SMART WORKFLOW SWITCHER
+        $("#kazuma_workflow_list").on("change", (e) => {
+            const newWorkflow = $(e.target).val();
+            const oldWorkflow = extension_settings[extensionName].currentWorkflowName;
+
+            // 1. Snapshot OLD workflow settings
+            if (oldWorkflow) {
+                if (!extension_settings[extensionName].savedWorkflowStates) extension_settings[extensionName].savedWorkflowStates = {};
+                extension_settings[extensionName].savedWorkflowStates[oldWorkflow] = getWorkflowState();
+                console.log(`[${extensionName}] Saved context for ${oldWorkflow}`);
             }
 
-            // 2. Load Settings & Bind Events
-            await $.get(`${extensionFolderPath}/example.html`).then(h => $("#extensions_settings2").append(h));
-
-            $("#kazuma_enable").on("change", (e) => { extension_settings[extensionName].enabled = $(e.target).prop("checked"); saveSettingsDebounced(); });
-            $("#kazuma_debug").on("change", (e) => { extension_settings[extensionName].debugPrompt = $(e.target).prop("checked"); saveSettingsDebounced(); });
-            $("#kazuma_url").on("input", (e) => { extension_settings[extensionName].comfyUrl = $(e.target).val(); saveSettingsDebounced(); });
-            $("#kazuma_profile").on("change", (e) => { extension_settings[extensionName].connectionProfile = $(e.target).val(); saveSettingsDebounced(); });
-            $("#kazuma_auto_enable").on("change", (e) => { extension_settings[extensionName].autoGenEnabled = $(e.target).prop("checked"); saveSettingsDebounced(); });
-            $("#kazuma_auto_freq").on("input", (e) => { let v = parseInt($(e.target).val()); if (v < 1) v = 1; extension_settings[extensionName].autoGenFreq = v; saveSettingsDebounced(); });
-
-            // SMART WORKFLOW SWITCHER
-            $("#kazuma_workflow_list").on("change", (e) => {
-                const newWorkflow = $(e.target).val();
-                const oldWorkflow = extension_settings[extensionName].currentWorkflowName;
-
-                // 1. Snapshot OLD workflow settings
-                if (oldWorkflow) {
-                    if (!extension_settings[extensionName].savedWorkflowStates) extension_settings[extensionName].savedWorkflowStates = {};
-                    extension_settings[extensionName].savedWorkflowStates[oldWorkflow] = getWorkflowState();
-                    console.log(`[${extensionName}] Saved context for ${oldWorkflow}`);
-                }
-
-                // 2. Load NEW workflow settings (if they exist)
-                if (extension_settings[extensionName].savedWorkflowStates && extension_settings[extensionName].savedWorkflowStates[newWorkflow]) {
-                    applyWorkflowState(extension_settings[extensionName].savedWorkflowStates[newWorkflow]);
-                    toastr.success(`Restored settings for ${newWorkflow}`);
-                } else {
-                    // If no saved state, we keep current values (Inheritance) - smoother UX
-                    toastr.info(`New workflow context active`);
-                }
-
-                // 3. Update Pointer
-                extension_settings[extensionName].currentWorkflowName = newWorkflow;
-                saveSettingsDebounced();
-            });
-            $("#kazuma_import_btn").on("click", () => $("#kazuma_import_file").click());
-
-            // New Logic Events
-            $("#kazuma_prompt_style").on("change", (e) => { extension_settings[extensionName].promptStyle = $(e.target).val(); saveSettingsDebounced(); });
-            $("#kazuma_prompt_persp").on("change", (e) => { extension_settings[extensionName].promptPerspective = $(e.target).val(); saveSettingsDebounced(); });
-            $("#kazuma_prompt_art_style").on("change", (e) => { extension_settings[extensionName].promptArtStyle = $(e.target).val(); saveSettingsDebounced(); });
-            $("#kazuma_prompt_extra").on("input", (e) => { extension_settings[extensionName].promptExtra = $(e.target).val(); saveSettingsDebounced(); });
-            $("#kazuma_profile_strategy").on("change", (e) => {
-                extension_settings[extensionName].profileStrategy = $(e.target).val();
-                toggleProfileVisibility();
-                saveSettingsDebounced();
-            });
-
-            $("#kazuma_new_workflow").on("click", onComfyNewWorkflowClick);
-            $("#kazuma_edit_workflow").on("click", onComfyOpenWorkflowEditorClick);
-            $("#kazuma_delete_workflow").on("click", onComfyDeleteWorkflowClick);
-
-            $("#kazuma_model_list").on("change", (e) => { extension_settings[extensionName].selectedModel = $(e.target).val(); saveSettingsDebounced(); });
-            $("#kazuma_sampler_list").on("change", (e) => { extension_settings[extensionName].selectedSampler = $(e.target).val(); saveSettingsDebounced(); });
-            $("#kazuma_resolution_list").on("change", (e) => {
-                const idx = parseInt($(e.target).val());
-                if (!isNaN(idx) && RESOLUTIONS[idx]) {
-                    const r = RESOLUTIONS[idx];
-                    $("#kazuma_width").val(r.w).trigger("input");
-                    $("#kazuma_height").val(r.h).trigger("input");
-                }
-            });
-
-            $("#kazuma_lora_list").on("change", (e) => { extension_settings[extensionName].selectedLora = $(e.target).val(); saveSettingsDebounced(); });
-            $("#kazuma_lora_list_2").on("change", (e) => { extension_settings[extensionName].selectedLora2 = $(e.target).val(); saveSettingsDebounced(); });
-            $("#kazuma_lora_list_3").on("change", (e) => { extension_settings[extensionName].selectedLora3 = $(e.target).val(); saveSettingsDebounced(); });
-            $("#kazuma_lora_list_4").on("change", (e) => { extension_settings[extensionName].selectedLora4 = $(e.target).val(); saveSettingsDebounced(); });
-            $("#kazuma_lora_wt").on("input", (e) => { let v = parseFloat($(e.target).val()); extension_settings[extensionName].selectedLoraWt = v; $("#kazuma_lora_wt_display").text(v); saveSettingsDebounced(); });
-            $("#kazuma_lora_wt_2").on("input", (e) => { let v = parseFloat($(e.target).val()); extension_settings[extensionName].selectedLoraWt2 = v; $("#kazuma_lora_wt_display_2").text(v); saveSettingsDebounced(); });
-            $("#kazuma_lora_wt_3").on("input", (e) => { let v = parseFloat($(e.target).val()); extension_settings[extensionName].selectedLoraWt3 = v; $("#kazuma_lora_wt_display_3").text(v); saveSettingsDebounced(); });
-            $("#kazuma_lora_wt_4").on("input", (e) => { let v = parseFloat($(e.target).val()); extension_settings[extensionName].selectedLoraWt4 = v; $("#kazuma_lora_wt_display_4").text(v); saveSettingsDebounced(); });
-
-            $("#kazuma_width, #kazuma_height").on("input", (e) => { extension_settings[extensionName][e.target.id === "kazuma_width" ? "imgWidth" : "imgHeight"] = parseInt($(e.target).val()); saveSettingsDebounced(); });
-            $("#kazuma_negative").on("input", (e) => { extension_settings[extensionName].customNegative = $(e.target).val(); saveSettingsDebounced(); });
-            $("#kazuma_seed").on("input", (e) => { extension_settings[extensionName].customSeed = parseInt($(e.target).val()); saveSettingsDebounced(); });
-            $("#kazuma_compress").on("change", (e) => { extension_settings[extensionName].compressImages = $(e.target).prop("checked"); saveSettingsDebounced(); });
-
-            // Phase 4: Avatar setting change handlers
-            $("#kazuma_avatar_character").on("change", (e) => { extension_settings[extensionName].avatarIncludeCharacter = $(e.target).prop("checked"); saveSettingsDebounced(); });
-            $("#kazuma_avatar_persona").on("change", (e) => { extension_settings[extensionName].avatarIncludePersona = $(e.target).prop("checked"); saveSettingsDebounced(); });
-
-            function bindSlider(id, key, isFloat = false) {
-                $(`#${id}`).on("input", function () {
-                    let v = isFloat ? parseFloat(this.value) : parseInt(this.value);
-                    extension_settings[extensionName][key] = v;
-                    $(`#${id}_val`).val(v);
-                    saveSettingsDebounced();
-                });
-                $(`#${id}_val`).on("input", function () {
-                    let v = isFloat ? parseFloat(this.value) : parseInt(this.value);
-                    extension_settings[extensionName][key] = v;
-                    $(`#${id}`).val(v);
-                    saveSettingsDebounced();
-                });
+            // 2. Load NEW workflow settings (if they exist)
+            if (extension_settings[extensionName].savedWorkflowStates && extension_settings[extensionName].savedWorkflowStates[newWorkflow]) {
+                applyWorkflowState(extension_settings[extensionName].savedWorkflowStates[newWorkflow]);
+                toastr.success(`Restored settings for ${newWorkflow}`);
+            } else {
+                // If no saved state, we keep current values (Inheritance) - smoother UX
+                toastr.info(`New workflow context active`);
             }
-            bindSlider("kazuma_steps", "steps", false);
-            bindSlider("kazuma_cfg", "cfg", true);
-            bindSlider("kazuma_denoise", "denoise", true);
-            bindSlider("kazuma_clip", "clipSkip", false);
 
-            // Phase 3: Quality preset and template event handlers
-            $("#kazuma_quality_preset").on("change", (e) => {
-                applyQualityPreset($(e.target).val());
+            // 3. Update Pointer
+            extension_settings[extensionName].currentWorkflowName = newWorkflow;
+            saveSettingsDebounced();
+        });
+        $("#kazuma_import_btn").on("click", () => $("#kazuma_import_file").click());
+
+        // New Logic Events
+        $("#kazuma_prompt_style").on("change", (e) => { extension_settings[extensionName].promptStyle = $(e.target).val(); saveSettingsDebounced(); });
+        $("#kazuma_prompt_persp").on("change", (e) => { extension_settings[extensionName].promptPerspective = $(e.target).val(); saveSettingsDebounced(); });
+        $("#kazuma_prompt_art_style").on("change", (e) => { extension_settings[extensionName].promptArtStyle = $(e.target).val(); saveSettingsDebounced(); });
+        $("#kazuma_prompt_extra").on("input", (e) => { extension_settings[extensionName].promptExtra = $(e.target).val(); saveSettingsDebounced(); });
+        $("#kazuma_profile_strategy").on("change", (e) => {
+            extension_settings[extensionName].profileStrategy = $(e.target).val();
+            toggleProfileVisibility();
+            saveSettingsDebounced();
+        });
+
+        $("#kazuma_new_workflow").on("click", onComfyNewWorkflowClick);
+        $("#kazuma_edit_workflow").on("click", onComfyOpenWorkflowEditorClick);
+        $("#kazuma_delete_workflow").on("click", onComfyDeleteWorkflowClick);
+
+        $("#kazuma_model_list").on("change", (e) => { extension_settings[extensionName].selectedModel = $(e.target).val(); saveSettingsDebounced(); });
+        $("#kazuma_sampler_list").on("change", (e) => { extension_settings[extensionName].selectedSampler = $(e.target).val(); saveSettingsDebounced(); });
+        $("#kazuma_resolution_list").on("change", (e) => {
+            const idx = parseInt($(e.target).val());
+            if (!isNaN(idx) && RESOLUTIONS[idx]) {
+                const r = RESOLUTIONS[idx];
+                $("#kazuma_width").val(r.w).trigger("input");
+                $("#kazuma_height").val(r.h).trigger("input");
+            }
+        });
+
+        $("#kazuma_lora_list").on("change", (e) => { extension_settings[extensionName].selectedLora = $(e.target).val(); saveSettingsDebounced(); });
+        $("#kazuma_lora_list_2").on("change", (e) => { extension_settings[extensionName].selectedLora2 = $(e.target).val(); saveSettingsDebounced(); });
+        $("#kazuma_lora_list_3").on("change", (e) => { extension_settings[extensionName].selectedLora3 = $(e.target).val(); saveSettingsDebounced(); });
+        $("#kazuma_lora_list_4").on("change", (e) => { extension_settings[extensionName].selectedLora4 = $(e.target).val(); saveSettingsDebounced(); });
+        $("#kazuma_lora_wt").on("input", (e) => { let v = parseFloat($(e.target).val()); extension_settings[extensionName].selectedLoraWt = v; $("#kazuma_lora_wt_display").text(v); saveSettingsDebounced(); });
+        $("#kazuma_lora_wt_2").on("input", (e) => { let v = parseFloat($(e.target).val()); extension_settings[extensionName].selectedLoraWt2 = v; $("#kazuma_lora_wt_display_2").text(v); saveSettingsDebounced(); });
+        $("#kazuma_lora_wt_3").on("input", (e) => { let v = parseFloat($(e.target).val()); extension_settings[extensionName].selectedLoraWt3 = v; $("#kazuma_lora_wt_display_3").text(v); saveSettingsDebounced(); });
+        $("#kazuma_lora_wt_4").on("input", (e) => { let v = parseFloat($(e.target).val()); extension_settings[extensionName].selectedLoraWt4 = v; $("#kazuma_lora_wt_display_4").text(v); saveSettingsDebounced(); });
+
+        $("#kazuma_width, #kazuma_height").on("input", (e) => { extension_settings[extensionName][e.target.id === "kazuma_width" ? "imgWidth" : "imgHeight"] = parseInt($(e.target).val()); saveSettingsDebounced(); });
+        $("#kazuma_negative").on("input", (e) => { extension_settings[extensionName].customNegative = $(e.target).val(); saveSettingsDebounced(); });
+        $("#kazuma_seed").on("input", (e) => { extension_settings[extensionName].customSeed = parseInt($(e.target).val()); saveSettingsDebounced(); });
+        $("#kazuma_compress").on("change", (e) => { extension_settings[extensionName].compressImages = $(e.target).prop("checked"); saveSettingsDebounced(); });
+
+        // Phase 4: Avatar setting change handlers
+        $("#kazuma_avatar_character").on("change", (e) => { extension_settings[extensionName].avatarIncludeCharacter = $(e.target).prop("checked"); saveSettingsDebounced(); });
+        $("#kazuma_avatar_persona").on("change", (e) => { extension_settings[extensionName].avatarIncludePersona = $(e.target).prop("checked"); saveSettingsDebounced(); });
+
+        function bindSlider(id, key, isFloat = false) {
+            $(`#${id}`).on("input", function () {
+                let v = isFloat ? parseFloat(this.value) : parseInt(this.value);
+                extension_settings[extensionName][key] = v;
+                $(`#${id}_val`).val(v);
+                saveSettingsDebounced();
             });
+            $(`#${id}_val`).on("input", function () {
+                let v = isFloat ? parseFloat(this.value) : parseInt(this.value);
+                extension_settings[extensionName][key] = v;
+                $(`#${id}`).val(v);
+                saveSettingsDebounced();
+            });
+        }
+        bindSlider("kazuma_steps", "steps", false);
+        bindSlider("kazuma_cfg", "cfg", true);
+        bindSlider("kazuma_denoise", "denoise", true);
+        bindSlider("kazuma_clip", "clipSkip", false);
 
-            $("#kazuma_prompt_template").on("change", (e) => {
-                const templateName = $(e.target).val();
-                if (templateName) {
-                    loadPromptTemplate(templateName);
+        // Phase 3: Quality preset and template event handlers
+        $("#kazuma_quality_preset").on("change", (e) => {
+            applyQualityPreset($(e.target).val());
+        });
+
+        $("#kazuma_prompt_template").on("change", (e) => {
+            const templateName = $(e.target).val();
+            if (templateName) {
+                loadPromptTemplate(templateName);
+            }
+        });
+
+        $("#kazuma_save_template_btn").on("click", () => {
+            const templateName = prompt("Enter template name:", "");
+            if (templateName) {
+                savePromptTemplate(templateName);
+            }
+        });
+
+        $("#kazuma_delete_template_btn").on("click", () => {
+            const templateName = $("#kazuma_prompt_template").val();
+            if (templateName) {
+                if (confirm(`Delete template "${templateName}"?`)) {
+                    deletePromptTemplate(templateName);
                 }
-            });
+            }
+        });
 
-            $("#kazuma_save_template_btn").on("click", () => {
-                const templateName = prompt("Enter template name:", "");
-                if (templateName) {
-                    savePromptTemplate(templateName);
-                }
-            });
+        $("#kazuma_export_settings_btn").on("click", exportSettings);
 
-            $("#kazuma_delete_template_btn").on("click", () => {
-                const templateName = $("#kazuma_prompt_template").val();
-                if (templateName) {
-                    if (confirm(`Delete template "${templateName}"?`)) {
-                        deletePromptTemplate(templateName);
-                    }
-                }
-            });
-
-            $("#kazuma_export_settings_btn").on("click", exportSettings);
-
-            $("#kazuma_import_settings_btn").on("click", async () => {
-                // Show import options dialog
-                const choice = await new Promise((resolve) => {
-                    const $content = $(`
+        $("#kazuma_import_settings_btn").on("click", async () => {
+            // Show import options dialog
+            const choice = await new Promise((resolve) => {
+                const $content = $(`
                         <div style="display: flex; flex-direction: column; gap: 10px;">
                             <p><b>Select import source:</b></p>
                             <button id="import_file" class="menu_button" style="width:100%">
@@ -2227,152 +2232,152 @@ async function fetchComfyLists() {
                         </div>
                     `);
 
-                    $content.find("#import_file").on("click", () => resolve("file"));
-                    $content.find("#import_storage").on("click", () => resolve("storage"));
-                    $content.find("#import_clipboard").on("click", () => resolve("clipboard"));
+                $content.find("#import_file").on("click", () => resolve("file"));
+                $content.find("#import_storage").on("click", () => resolve("storage"));
+                $content.find("#import_clipboard").on("click", () => resolve("clipboard"));
 
-                    const popup = new Popup($content, POPUP_TYPE.TEXT, "Import Settings", { okButton: "Cancel" });
-                    popup.show().then(() => resolve(null));
+                const popup = new Popup($content, POPUP_TYPE.TEXT, "Import Settings", { okButton: "Cancel" });
+                popup.show().then(() => resolve(null));
+            });
+
+            if (!choice) return;
+
+            if (choice === "file") {
+                const fileInput = document.createElement("input");
+                fileInput.type = "file";
+                fileInput.accept = ".json";
+                fileInput.addEventListener("change", async (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        await importSettings(file);
+                    }
                 });
+                fileInput.click();
+            } else if (choice === "storage") {
+                importFromLocalStorage();
+            } else if (choice === "clipboard") {
+                await importFromClipboard();
+            }
+        });
 
-                if (!choice) return;
+        // Phase 5: Batch generation event handlers
+        $("#kazuma_batch_mode").on("change", (e) => {
+            extension_settings[extensionName].batchMode = $(e.target).prop("checked");
+            toggleBatchUI();
+            saveSettingsDebounced();
+        });
 
-                if (choice === "file") {
-                    const fileInput = document.createElement("input");
-                    fileInput.type = "file";
-                    fileInput.accept = ".json";
-                    fileInput.addEventListener("change", async (e) => {
-                        const file = e.target.files[0];
-                        if (file) {
-                            await importSettings(file);
-                        }
-                    });
-                    fileInput.click();
-                } else if (choice === "storage") {
-                    importFromLocalStorage();
-                } else if (choice === "clipboard") {
-                    await importFromClipboard();
-                }
-            });
+        $("#kazuma_batch_count").on("input", (e) => {
+            let v = parseInt($(e.target).val());
+            v = validateAndClampNumber(v, 1, 100, 3);
+            $(e.target).val(v);
+            extension_settings[extensionName].batchCount = v;
+            saveSettingsDebounced();
+        });
 
-            // Phase 5: Batch generation event handlers
-            $("#kazuma_batch_mode").on("change", (e) => {
-                extension_settings[extensionName].batchMode = $(e.target).prop("checked");
-                toggleBatchUI();
-                saveSettingsDebounced();
-            });
+        // Phase 6: Cache event handlers
+        $("#kazuma_enable_cache").on("change", (e) => {
+            extension_settings[extensionName].enableCaching = $(e.target).prop("checked");
+            saveSettingsDebounced();
+        });
 
-            $("#kazuma_batch_count").on("input", (e) => {
-                let v = parseInt($(e.target).val());
-                v = validateAndClampNumber(v, 1, 100, 3);
-                $(e.target).val(v);
-                extension_settings[extensionName].batchCount = v;
-                saveSettingsDebounced();
-            });
+        $("#kazuma_cache_ttl").on("input", (e) => {
+            let v = parseInt($(e.target).val());
+            v = validateAndClampNumber(v, 1, 1440, 60); // 1 minute to 24 hours
+            $(e.target).val(v);
+            extension_settings[extensionName].cacheTTL = v * 60000; // Convert to milliseconds
+            saveSettingsDebounced();
+        });
 
-            // Phase 6: Cache event handlers
-            $("#kazuma_enable_cache").on("change", (e) => {
-                extension_settings[extensionName].enableCaching = $(e.target).prop("checked");
-                saveSettingsDebounced();
-            });
+        $("#kazuma_clear_cache_btn").on("click", clearResponseCache);
 
-            $("#kazuma_cache_ttl").on("input", (e) => {
-                let v = parseInt($(e.target).val());
-                v = validateAndClampNumber(v, 1, 1440, 60); // 1 minute to 24 hours
-                $(e.target).val(v);
-                extension_settings[extensionName].cacheTTL = v * 60000; // Convert to milliseconds
-                saveSettingsDebounced();
-            });
+        $("#kazuma_test_btn").on("click", onTestConnection);
+        $("#kazuma_gen_prompt_btn").on("click", onGeneratePrompt);
 
-            $("#kazuma_clear_cache_btn").on("click", clearResponseCache);
+        loadSettings();
+        eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
+        eventSource.on(event_types.IMAGE_SWIPED, onImageSwiped);
 
-            $("#kazuma_test_btn").on("click", onTestConnection);
-            $("#kazuma_gen_prompt_btn").on("click", onGeneratePrompt);
+        let att = 0; const int = setInterval(() => { if ($("#kazuma_quick_gen").length > 0) { clearInterval(int); return; } createChatButton(); att++; if (att > 5) clearInterval(int); }, 1000);
+        $(document).on("click", "#kazuma_quick_gen", function (e) { e.preventDefault(); e.stopPropagation(); onGeneratePrompt(); });
+    } catch (e) { console.error(e); }
+});
 
-            loadSettings();
-            eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
-            eventSource.on(event_types.IMAGE_SWIPED, onImageSwiped);
+// Helpers (Condensed)
+function onMessageReceived(id) { if (!extension_settings[extensionName].enabled || !extension_settings[extensionName].autoGenEnabled) return; const chat = getContext().chat; if (!chat || !chat.length) return; if (chat[chat.length - 1].is_user || chat[chat.length - 1].is_system) return; const aiMsgCount = chat.filter(m => !m.is_user && !m.is_system).length; const freq = parseInt(extension_settings[extensionName].autoGenFreq) || 1; if (aiMsgCount % freq === 0) { console.log(`[${extensionName}] Auto-gen...`); setTimeout(onGeneratePrompt, 500); } }
+function createChatButton() { if ($("#kazuma_quick_gen").length > 0) return; const b = `<div id="kazuma_quick_gen" class="interactable" title="Visualize" style="cursor: pointer; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; margin-right: 5px; opacity: 0.7;"><i class="fa-solid fa-paintbrush fa-lg"></i></div>`; let t = $("#send_but_sheld"); if (!t.length) t = $("#send_textarea"); if (t.length) { t.attr("id") === "send_textarea" ? t.before(b) : t.prepend(b); } }
+function populateProfiles() { const s = $("#kazuma_profile"), o = $("#settings_preset_openai").find("option"); s.empty().append('<option value="">-- Use Current Settings --</option>'); if (o.length) o.each(function () { s.append(`<option value="${$(this).val()}">${$(this).text()}</option>`) }); if (extension_settings[extensionName].connectionProfile) s.val(extension_settings[extensionName].connectionProfile); }
+async function onFileSelected(e) { const f = e.target.files[0]; if (!f) return; const t = await f.text(); try { const j = JSON.parse(t), n = prompt("Name:", f.name.replace(".json", "")); if (n) { extension_settings[extensionName].savedWorkflows[n] = j; extension_settings[extensionName].currentWorkflowName = n; saveSettingsDebounced(); populateWorkflows(); } } catch { toastr.error("Invalid JSON"); } $(e.target).val(''); }
+function showKazumaProgress(text = "Processing...") {
+    $("#kazuma_progress_text").text(text);
+    $("#kazuma_progress_overlay").css("display", "flex");
+}
 
-            let att = 0; const int = setInterval(() => { if ($("#kazuma_quick_gen").length > 0) { clearInterval(int); return; } createChatButton(); att++; if (att > 5) clearInterval(int); }, 1000);
-            $(document).on("click", "#kazuma_quick_gen", function (e) { e.preventDefault(); e.stopPropagation(); onGeneratePrompt(); });
-        } catch (e) { console.error(e); }
-    });
+function hideKazumaProgress() {
+    $("#kazuma_progress_overlay").hide();
+}
+/* --- WORKFLOW CONTEXT MANAGERS --- */
+function getWorkflowState() {
+    const s = extension_settings[extensionName];
+    // Capture all image-related parameters
+    return {
+        selectedModel: s.selectedModel,
+        selectedSampler: s.selectedSampler,
+        steps: s.steps,
+        cfg: s.cfg,
+        denoise: s.denoise,
+        clipSkip: s.clipSkip,
+        imgWidth: s.imgWidth,
+        imgHeight: s.imgHeight,
+        customSeed: s.customSeed,
+        customNegative: s.customNegative,
+        // Smart Prompts
+        promptStyle: s.promptStyle,
+        promptPerspective: s.promptPerspective,
+        promptExtra: s.promptExtra,
+        // LoRAs
+        selectedLora: s.selectedLora, selectedLoraWt: s.selectedLoraWt,
+        selectedLora2: s.selectedLora2, selectedLoraWt2: s.selectedLoraWt2,
+        selectedLora3: s.selectedLora3, selectedLoraWt3: s.selectedLoraWt3,
+        selectedLora4: s.selectedLora4, selectedLoraWt4: s.selectedLoraWt4,
+    };
+}
 
-    // Helpers (Condensed)
-    function onMessageReceived(id) { if (!extension_settings[extensionName].enabled || !extension_settings[extensionName].autoGenEnabled) return; const chat = getContext().chat; if (!chat || !chat.length) return; if (chat[chat.length - 1].is_user || chat[chat.length - 1].is_system) return; const aiMsgCount = chat.filter(m => !m.is_user && !m.is_system).length; const freq = parseInt(extension_settings[extensionName].autoGenFreq) || 1; if (aiMsgCount % freq === 0) { console.log(`[${extensionName}] Auto-gen...`); setTimeout(onGeneratePrompt, 500); } }
-    function createChatButton() { if ($("#kazuma_quick_gen").length > 0) return; const b = `<div id="kazuma_quick_gen" class="interactable" title="Visualize" style="cursor: pointer; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; margin-right: 5px; opacity: 0.7;"><i class="fa-solid fa-paintbrush fa-lg"></i></div>`; let t = $("#send_but_sheld"); if (!t.length) t = $("#send_textarea"); if (t.length) { t.attr("id") === "send_textarea" ? t.before(b) : t.prepend(b); } }
-    function populateProfiles() { const s = $("#kazuma_profile"), o = $("#settings_preset_openai").find("option"); s.empty().append('<option value="">-- Use Current Settings --</option>'); if (o.length) o.each(function () { s.append(`<option value="${$(this).val()}">${$(this).text()}</option>`) }); if (extension_settings[extensionName].connectionProfile) s.val(extension_settings[extensionName].connectionProfile); }
-    async function onFileSelected(e) { const f = e.target.files[0]; if (!f) return; const t = await f.text(); try { const j = JSON.parse(t), n = prompt("Name:", f.name.replace(".json", "")); if (n) { extension_settings[extensionName].savedWorkflows[n] = j; extension_settings[extensionName].currentWorkflowName = n; saveSettingsDebounced(); populateWorkflows(); } } catch { toastr.error("Invalid JSON"); } $(e.target).val(''); }
-    function showKazumaProgress(text = "Processing...") {
-        $("#kazuma_progress_text").text(text);
-        $("#kazuma_progress_overlay").css("display", "flex");
-    }
+function applyWorkflowState(state) {
+    const s = extension_settings[extensionName];
+    // 1. Update Global Settings
+    Object.assign(s, state);
 
-    function hideKazumaProgress() {
-        $("#kazuma_progress_overlay").hide();
-    }
-    /* --- WORKFLOW CONTEXT MANAGERS --- */
-    function getWorkflowState() {
-        const s = extension_settings[extensionName];
-        // Capture all image-related parameters
-        return {
-            selectedModel: s.selectedModel,
-            selectedSampler: s.selectedSampler,
-            steps: s.steps,
-            cfg: s.cfg,
-            denoise: s.denoise,
-            clipSkip: s.clipSkip,
-            imgWidth: s.imgWidth,
-            imgHeight: s.imgHeight,
-            customSeed: s.customSeed,
-            customNegative: s.customNegative,
-            // Smart Prompts
-            promptStyle: s.promptStyle,
-            promptPerspective: s.promptPerspective,
-            promptExtra: s.promptExtra,
-            // LoRAs
-            selectedLora: s.selectedLora, selectedLoraWt: s.selectedLoraWt,
-            selectedLora2: s.selectedLora2, selectedLoraWt2: s.selectedLoraWt2,
-            selectedLora3: s.selectedLora3, selectedLoraWt3: s.selectedLoraWt3,
-            selectedLora4: s.selectedLora4, selectedLoraWt4: s.selectedLoraWt4,
-        };
-    }
+    // 2. Update UI Elements
+    $("#kazuma_model_list").val(s.selectedModel);
+    $("#kazuma_sampler_list").val(s.selectedSampler);
 
-    function applyWorkflowState(state) {
-        const s = extension_settings[extensionName];
-        // 1. Update Global Settings
-        Object.assign(s, state);
+    updateSliderInput('kazuma_steps', 'kazuma_steps_val', s.steps);
+    updateSliderInput('kazuma_cfg', 'kazuma_cfg_val', s.cfg);
+    updateSliderInput('kazuma_denoise', 'kazuma_denoise_val', s.denoise);
+    updateSliderInput('kazuma_clip', 'kazuma_clip_val', s.clipSkip);
 
-        // 2. Update UI Elements
-        $("#kazuma_model_list").val(s.selectedModel);
-        $("#kazuma_sampler_list").val(s.selectedSampler);
+    $("#kazuma_width").val(s.imgWidth);
+    $("#kazuma_height").val(s.imgHeight);
+    $("#kazuma_seed").val(s.customSeed);
+    $("#kazuma_negative").val(s.customNegative);
 
-        updateSliderInput('kazuma_steps', 'kazuma_steps_val', s.steps);
-        updateSliderInput('kazuma_cfg', 'kazuma_cfg_val', s.cfg);
-        updateSliderInput('kazuma_denoise', 'kazuma_denoise_val', s.denoise);
-        updateSliderInput('kazuma_clip', 'kazuma_clip_val', s.clipSkip);
+    // Smart Prompt UI
+    $("#kazuma_prompt_style").val(s.promptStyle || "standard");
+    $("#kazuma_prompt_persp").val(s.promptPerspective || "scene");
+    $("#kazuma_prompt_art_style").val(s.promptArtStyle || "realistic");
+    $("#kazuma_prompt_extra").val(s.promptExtra || "");
 
-        $("#kazuma_width").val(s.imgWidth);
-        $("#kazuma_height").val(s.imgHeight);
-        $("#kazuma_seed").val(s.customSeed);
-        $("#kazuma_negative").val(s.customNegative);
+    // LoRA UI
+    $("#kazuma_lora_list").val(s.selectedLora);
+    $("#kazuma_lora_list_2").val(s.selectedLora2);
+    $("#kazuma_lora_list_3").val(s.selectedLora3);
+    $("#kazuma_lora_list_4").val(s.selectedLora4);
 
-        // Smart Prompt UI
-        $("#kazuma_prompt_style").val(s.promptStyle || "standard");
-        $("#kazuma_prompt_persp").val(s.promptPerspective || "scene");
-        $("#kazuma_prompt_art_style").val(s.promptArtStyle || "realistic");
-        $("#kazuma_prompt_extra").val(s.promptExtra || "");
-
-        // LoRA UI
-        $("#kazuma_lora_list").val(s.selectedLora);
-        $("#kazuma_lora_list_2").val(s.selectedLora2);
-        $("#kazuma_lora_list_3").val(s.selectedLora3);
-        $("#kazuma_lora_list_4").val(s.selectedLora4);
-
-        // LoRA Weights UI
-        $("#kazuma_lora_wt").val(s.selectedLoraWt); $("#kazuma_lora_wt_display").text(s.selectedLoraWt);
-        $("#kazuma_lora_wt_2").val(s.selectedLoraWt2); $("#kazuma_lora_wt_display_2").text(s.selectedLoraWt2);
-        $("#kazuma_lora_wt_3").val(s.selectedLoraWt3); $("#kazuma_lora_wt_display_3").text(s.selectedLoraWt3);
-        $("#kazuma_lora_wt_4").val(s.selectedLoraWt4); $("#kazuma_lora_wt_display_4").text(s.selectedLoraWt4);
-    }
+    // LoRA Weights UI
+    $("#kazuma_lora_wt").val(s.selectedLoraWt); $("#kazuma_lora_wt_display").text(s.selectedLoraWt);
+    $("#kazuma_lora_wt_2").val(s.selectedLoraWt2); $("#kazuma_lora_wt_display_2").text(s.selectedLoraWt2);
+    $("#kazuma_lora_wt_3").val(s.selectedLoraWt3); $("#kazuma_lora_wt_display_3").text(s.selectedLoraWt3);
+    $("#kazuma_lora_wt_4").val(s.selectedLoraWt4); $("#kazuma_lora_wt_display_4").text(s.selectedLoraWt4);
+}
 
