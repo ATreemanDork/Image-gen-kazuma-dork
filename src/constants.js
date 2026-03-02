@@ -102,7 +102,7 @@ export const DEFAULT_SETTINGS = {
     promptExtra: "",
 
     // Active workflow
-    activeWorkflow: "default.json",
+    activeWorkflow: "ExampleComfyWorkflow.json",
 
     // Generation parameters
     steps: 20,

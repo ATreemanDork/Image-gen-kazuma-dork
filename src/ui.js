@@ -571,12 +571,28 @@ async function renderSettingsPanel() {
         }
 
         // Fetch settings.html and append
-        const response = await fetch('./public/extensions/Image-gen-kazuma-dork/settings.html');
-        if (!response.ok) {
-            throw new Error(`Failed to load settings.html: ${response.status}`);
+        const candidateUrls = [
+            new URL('../settings.html', import.meta.url).toString(),
+            '/scripts/extensions/third-party/Image-gen-kazuma-dork/settings.html',
+            './settings.html'
+        ];
+
+        let settingsHTML;
+        let lastStatus = 'unknown';
+
+        for (const url of candidateUrls) {
+            const response = await fetch(url);
+            if (response.ok) {
+                settingsHTML = await response.text();
+                break;
+            }
+            lastStatus = String(response.status);
         }
 
-        const settingsHTML = await response.text();
+        if (!settingsHTML) {
+            throw new Error(`Failed to load settings.html: ${lastStatus}`);
+        }
+
         settingsContainer.append(settingsHTML);
 
         runtimeState.settingsPanelRendered = true;

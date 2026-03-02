@@ -6,6 +6,44 @@
 import { debugLog, errorLog, warnLog } from './logger.js';
 import { sanitizeWorkflowFilename, validateWorkflowJSON, deepClone, safeJSONParse } from './utils.js';
 
+const WORKFLOW_API_BASE = '/api/extensions/third-party/Image-gen-kazuma-dork/workflows';
+const STATIC_WORKFLOW_CANDIDATES = ['ExampleComfyWorkflow.json', 'default.json'];
+
+function getWorkflowApiUrl(name) {
+    const suffix = name ? `/${name}` : '';
+    return `${WORKFLOW_API_BASE}${suffix}`;
+}
+
+function getStaticWorkflowUrl(name) {
+    return new URL(`../reference/${name}`, import.meta.url).toString();
+}
+
+async function loadWorkflowFromStatic(name) {
+    const staticUrl = getStaticWorkflowUrl(name);
+    const response = await fetch(staticUrl, { method: 'GET' });
+
+    if (!response.ok) {
+        throw new Error(`Workflow not found in static reference: ${name}`);
+    }
+
+    const text = await response.text();
+    const json = safeJSONParse(text, `workflow ${name}`);
+    return validateWorkflowJSON(json);
+}
+
+async function listStaticWorkflows() {
+    const discovered = [];
+
+    for (const name of STATIC_WORKFLOW_CANDIDATES) {
+        const response = await fetch(getStaticWorkflowUrl(name), { method: 'GET' });
+        if (response.ok) {
+            discovered.push(name);
+        }
+    }
+
+    return discovered;
+}
+
 /**
  * Per-workflow state storage (remembers settings for each workflow)
  * Not persisted to extension_settings, only lives in session
@@ -24,14 +62,15 @@ export async function loadWorkflow(name, getRequestHeaders) {
     debugLog(`Loading workflow: ${sanitizedName}`);
 
     try {
-        const response = await fetch(`/api/extensions/third-party/Image-gen-kazuma-dork/workflows/${sanitizedName}`, {
+        const response = await fetch(getWorkflowApiUrl(sanitizedName), {
             method: 'GET',
             headers: getRequestHeaders()
         });
 
         if (!response.ok) {
             if (response.status === 404) {
-                throw new Error(`Workflow not found: ${sanitizedName}`);
+                debugLog(`Workflow API route unavailable or file missing for ${sanitizedName}, trying static fallback`);
+                return await loadWorkflowFromStatic(sanitizedName);
             }
             throw new Error(`Failed to load workflow: ${response.status} ${response.statusText}`);
         }
@@ -64,13 +103,16 @@ export async function saveWorkflow(name, workflowData, getRequestHeaders) {
         // Validate before saving
         const validated = validateWorkflowJSON(workflowData);
 
-        const response = await fetch(`/api/extensions/third-party/Image-gen-kazuma-dork/workflows/${sanitizedName}`, {
+        const response = await fetch(getWorkflowApiUrl(sanitizedName), {
             method: 'POST',
             headers: getRequestHeaders(),
             body: JSON.stringify(validated, null, 2)
         });
 
         if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error('Workflow save API is unavailable in this deployment (read-only workflow mode)');
+            }
             throw new Error(`Failed to save workflow: ${response.status} ${response.statusText}`);
         }
 
@@ -94,13 +136,17 @@ export async function deleteWorkflow(name, getRequestHeaders) {
     debugLog(`Deleting workflow: ${sanitizedName}`);
 
     try {
-        const response = await fetch(`/api/extensions/third-party/Image-gen-kazuma-dork/workflows/${sanitizedName}`, {
+        const response = await fetch(getWorkflowApiUrl(sanitizedName), {
             method: 'DELETE',
             headers: getRequestHeaders()
         });
 
         if (!response.ok && response.status !== 404) {
             throw new Error(`Failed to delete workflow: ${response.status} ${response.statusText}`);
+        }
+
+        if (response.status === 404) {
+            throw new Error('Workflow delete API is unavailable in this deployment (read-only workflow mode)');
         }
 
         // Clean up workflow state
@@ -122,12 +168,16 @@ export async function listWorkflows(getRequestHeaders) {
     debugLog('Fetching workflow list');
 
     try {
-        const response = await fetch('/api/extensions/third-party/Image-gen-kazuma-dork/workflows', {
+        const response = await fetch(getWorkflowApiUrl(), {
             method: 'GET',
             headers: getRequestHeaders()
         });
 
         if (!response.ok) {
+            if (response.status === 404) {
+                debugLog('Workflow API unavailable, using static reference fallback');
+                return await listStaticWorkflows();
+            }
             warnLog(`Failed to fetch workflow list: ${response.status}`);
             return [];
         }
