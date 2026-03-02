@@ -7,6 +7,13 @@ import { CONSTANTS } from './constants.js';
 import { debugLog, errorLog } from './logger.js';
 import { validateComfyURL, getDetailedErrorMessage } from './utils.js';
 
+function buildComfyUrl(baseUrl, path) {
+    const validatedBase = validateComfyURL(baseUrl);
+    const normalizedBase = validatedBase.endsWith('/') ? validatedBase : `${validatedBase}/`;
+    const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
+    return new URL(normalizedPath, normalizedBase).toString();
+}
+
 /**
  * Fetch with timeout using AbortController
  * @param {string} url - URL to fetch
@@ -49,7 +56,7 @@ export async function testConnection(baseUrl) {
     debugLog(`Testing connection to: ${baseUrl}`);
 
     try {
-        const response = await fetchWithTimeout(`${baseUrl}/system_stats`);
+        const response = await fetchWithTimeout(buildComfyUrl(baseUrl, '/system_stats'));
 
         if (!response.ok) {
             throw new Error(`Server returned status ${response.status}`);
@@ -73,7 +80,7 @@ export async function getModels(baseUrl) {
     debugLog('Fetching model list');
 
     try {
-        const response = await fetchWithTimeout(`${baseUrl}/object_info`);
+        const response = await fetchWithTimeout(buildComfyUrl(baseUrl, '/object_info'));
 
         if (!response.ok) {
             throw new Error(`Failed to fetch models: ${response.status}`);
@@ -101,7 +108,7 @@ export async function getSamplers(baseUrl) {
     debugLog('Fetching sampler list');
 
     try {
-        const response = await fetchWithTimeout(`${baseUrl}/object_info`);
+        const response = await fetchWithTimeout(buildComfyUrl(baseUrl, '/object_info'));
 
         if (!response.ok) {
             throw new Error(`Failed to fetch samplers: ${response.status}`);
@@ -129,7 +136,7 @@ export async function getSchedulers(baseUrl) {
     debugLog('Fetching scheduler list');
 
     try {
-        const response = await fetchWithTimeout(`${baseUrl}/object_info`);
+        const response = await fetchWithTimeout(buildComfyUrl(baseUrl, '/object_info'));
 
         if (!response.ok) {
             throw new Error(`Failed to fetch schedulers: ${response.status}`);
@@ -159,7 +166,7 @@ export async function submitWorkflow(baseUrl, workflow) {
     debugLog('Submitting workflow to ComfyUI');
 
     try {
-        const response = await fetchWithTimeout(`${baseUrl}/prompt`, {
+        const response = await fetchWithTimeout(buildComfyUrl(baseUrl, '/prompt'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -196,7 +203,7 @@ export async function pollGenerationStatus(baseUrl, promptId) {
     debugLog(`Polling status for prompt: ${promptId}`);
 
     try {
-        const response = await fetchWithTimeout(`${baseUrl}/history/${promptId}`);
+        const response = await fetchWithTimeout(buildComfyUrl(baseUrl, `/history/${promptId}`));
 
         if (!response.ok) {
             throw new Error(`Status check failed: ${response.status}`);
@@ -244,7 +251,7 @@ export async function getQueueStatus(baseUrl) {
     debugLog('Fetching queue status');
 
     try {
-        const response = await fetchWithTimeout(`${baseUrl}/queue`);
+        const response = await fetchWithTimeout(buildComfyUrl(baseUrl, '/queue'));
 
         if (!response.ok) {
             throw new Error(`Queue status failed: ${response.status}`);

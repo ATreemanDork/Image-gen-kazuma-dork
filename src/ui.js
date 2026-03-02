@@ -264,13 +264,20 @@ export function syncUIWithSettings() {
  */
 function setupEventHandlers() {
     // Enable/disable toggle
-    UI.$enable.on("change", function () {
+    UI.$enable.on("change", async function () {
         if (this.checked) {
             core.enable();
-            enableControls();
+
+            // Lazy-load dynamic data only after explicit enable
+            await updateWorkflowList();
+            await updateModelList();
+            await updateSamplerList();
+
+            if (typeof toastr !== 'undefined') {
+                toastr.info('Extension enabled. Configure ComfyUI URL and test connection if needed.');
+            }
         } else {
             core.disable();
-            disableControls();
         }
     });
 
@@ -823,13 +830,18 @@ export async function initializeUI() {
         // Setup settings panel handlers (export/import/reset)
         setupSettingsPanelHandlers();
 
-        // Load dropdowns
-        await updateWorkflowList();
-        await updateModelList();
-        await updateSamplerList();
-
         // Sync UI with settings
         syncUIWithSettings();
+
+        // Load dynamic lists only if extension is enabled
+        const settings = core.getSettings();
+        if (settings.enabled) {
+            await updateWorkflowList();
+            await updateModelList();
+            await updateSamplerList();
+        } else {
+            debugLog('Extension starts disabled; skipping startup ComfyUI/workflow fetches');
+        }
 
         // Setup chat button observer
         setupChatButtonObserver();

@@ -61,6 +61,13 @@ export async function loadWorkflow(name, getRequestHeaders) {
     const sanitizedName = sanitizeWorkflowFilename(name);
     debugLog(`Loading workflow: ${sanitizedName}`);
 
+    // Prefer packaged static workflows first to avoid API 404s
+    try {
+        return await loadWorkflowFromStatic(sanitizedName);
+    } catch {
+        // Fall through to API-backed loading for user-saved workflows
+    }
+
     try {
         const response = await fetch(getWorkflowApiUrl(sanitizedName), {
             method: 'GET',
@@ -166,6 +173,13 @@ export async function deleteWorkflow(name, getRequestHeaders) {
  */
 export async function listWorkflows(getRequestHeaders) {
     debugLog('Fetching workflow list');
+
+    // Prefer static reference workflows (works in read-only/non-admin hosted setups)
+    const staticWorkflows = await listStaticWorkflows();
+    if (staticWorkflows.length > 0) {
+        debugLog(`Using ${staticWorkflows.length} static workflows`);
+        return staticWorkflows;
+    }
 
     try {
         const response = await fetch(getWorkflowApiUrl(), {

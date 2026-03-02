@@ -83,7 +83,7 @@ export const DEFAULT_SETTINGS = {
     settingsVersion: 1,
 
     // Core toggles
-    enabled: true,
+    enabled: false,
     compress: true,
     debugLogging: false,
     diagnosticMode: false,
