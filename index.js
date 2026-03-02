@@ -5,11 +5,7 @@ import { saveBase64AsFile } from "../../../utils.js";
 import { humanizedDateTime } from "../../../RossAscends-mods.js";
 import { Popup, POPUP_TYPE } from "../../../popup.js";
 
-// Derive extension name from the script's actual folder path
-const scriptUrl = new URL(import.meta.url);
-const pathParts = scriptUrl.pathname.split('/');
-const extensionName = pathParts[pathParts.length - 2] || "Image-gen-kazuma-dork"; // fallback if parsing fails
-const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
+const extensionName = "Image-gen-kazuma-dork";
 
 // --- PHASE 1: RELIABILITY UTILITIES ---
 /**
@@ -2101,8 +2097,8 @@ jQuery(async () => {
             `);
         }
 
-        // 2. Load Settings & Bind Events
-        await $.get(`${extensionFolderPath}/example.html`).then(h => $("#extensions_settings2").append(h));
+        // 2. Load Settings & Bind Events - Use relative path since example.html is in same directory
+        await $.get("./example.html").then(h => $("#extensions_settings2").append(h));
 
 
         $("#kazuma_enable").on("change", (e) => { extension_settings[extensionName].enabled = $(e.target).prop("checked"); saveSettingsDebounced(); });
