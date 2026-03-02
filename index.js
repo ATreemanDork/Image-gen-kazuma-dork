@@ -1326,32 +1326,46 @@ async function onComfyOpenWorkflowEditorClick() {
     const name = extension_settings[extensionName].currentWorkflowName;
     if (!name) return toastr.warning("No workflow selected");
 
+    // Validate filename before loading (defense in depth)
     try {
-        // Validate filename before loading (defense in depth)
         sanitizeWorkflowFilename(name);
+    } catch (e) {
+        return toastr.error(`Invalid filename: ${e.message}`);
+    }
 
-        // 1. Load Data
-        let loadedContent = "{}";
-        try {
-            const res = await fetchWithTimeout('/api/sd/comfy/workflow', {
-                method: 'POST', headers: getRequestHeaders(),
-                body: JSON.stringify({ file_name: name })
-            }, 30000);
+    // 1. Load Data
+    let loadedContent = "{}";
+    try {
+        const res = await fetchWithTimeout('/api/sd/comfy/workflow', {
+            method: 'POST', headers: getRequestHeaders(),
+            body: JSON.stringify({ file_name: name })
+        }, 30000);
 
-            if (res.ok) {
-                const rawBody = await res.json();
-                let jsonObj = rawBody;
-                if (typeof rawBody === 'string') {
-                    try { jsonObj = JSON.parse(rawBody); } catch (e) { }
+        if (res.ok) {
+            const rawBody = await res.json();
+            let jsonObj = rawBody;
+            if (typeof rawBody === 'string') {
+                try {
+                    jsonObj = JSON.parse(rawBody);
+                } catch (err) {
+                    // If raw body is string but not valid JSON, use as-is
                 }
-                loadedContent = JSON.stringify(jsonObj, null, 4);
-            } else {
-                throw new Error(`Failed to load file (HTTP ${res.status})`);
             }
-        } catch (e) {
-            const msg = e.message || String(e);
-            toastr.error(`Could not load file: ${msg}. Starting with empty workflow.`);
+            loadedContent = JSON.stringify(jsonObj, null, 4);
+        } else {
+            throw new Error(`Failed to load file (HTTP ${res.status})`);
         }
+    } catch (e) {
+        const msg = e.message || String(e);
+        toastr.error(`Could not load file: ${msg}. Starting with empty workflow.`);
+    }
+
+    // Proceed to UI builder even if load failed
+    openWorkflowEditorUI(name, loadedContent);
+}
+
+async function openWorkflowEditorUI(name, loadedContent) {
+    try {
 
         // 2. Variable to hold the text in memory (Critical for saving)
         let currentJsonText = loadedContent;
