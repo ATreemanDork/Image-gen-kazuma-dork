@@ -5,7 +5,10 @@ import { saveBase64AsFile } from "../../../utils.js";
 import { humanizedDateTime } from "../../../RossAscends-mods.js";
 import { Popup, POPUP_TYPE } from "../../../popup.js";
 
-const extensionName = "Image-gen-kazuma";
+// Derive extension name from the script's actual folder path
+const scriptUrl = new URL(import.meta.url);
+const pathParts = scriptUrl.pathname.split('/');
+const extensionName = pathParts[pathParts.length - 2] || "Image-gen-kazuma-dork"; // fallback if parsing fails
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 
 // --- PHASE 1: RELIABILITY UTILITIES ---
