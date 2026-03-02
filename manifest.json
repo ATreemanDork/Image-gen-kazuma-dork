@@ -7,5 +7,6 @@
   "css": "style.css",
   "author": "kazuma",
   "version": "1.0.0",
-  "description": "Advanced ComfyUI integration with Auto-Gen, Swipe-to-Regenerate, Multi-LoRA support, and Custom Workflow management."
+  "description": "Advanced ComfyUI integration with Auto-Gen, Swipe-to-Regenerate, Multi-LoRA support, and Custom Workflow management.",
+  "minimum_client_version": "1.11.0"
 }
